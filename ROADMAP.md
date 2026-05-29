@@ -86,8 +86,7 @@ starts misbehaving is automatically quarantined.
     policies to see what *would* have been blocked before you ship a rule.
 13. **Rate-limit & quota tiers** — per-tier request quotas (AAA gets more) with
     Retry-After + 429 semantics that match what Valiron's sandbox rewards.
-14. **Kill switch / attack mode** — one toggle to fail-closed everything or drop
-    to read-only tools during an active incident.
+14. ~~**Kill switch / attack mode**~~ ✅ UI + runtime toggle (`fail_closed` / `read_only` via `/api/config`) + attack wave button.
 15. **Vercel one-click deploy** — `Deploy` button, hosted demo URL, env wizard.
 
 ## Stretch / moonshots

@@ -1,5 +1,7 @@
+import { getIncident } from "./config";
 import { recordDecision } from "./events";
 import { checkGuardrails, recordSpend } from "./guardrails";
+import { isReadOnlyAllowed } from "./incident";
 import { isOperatorEnabled, operatorGate } from "./operator";
 import { dynamicPrice } from "./tools";
 import { evaluateAgent } from "./trust";
@@ -113,6 +115,21 @@ export async function handleProxyCall(input: ProxyCallInput): Promise<ProxyResul
     };
   }
 
+  if (getIncident() === "fail_closed") {
+    const decision: Decision = {
+      id: decisionId(), ts: Date.now(), agentId, tool: label, kind: "api", upstream: upstream.id,
+      allow: false, blockedBy: "kill-switch", score: 0, tier: "C", riskLevel: "RED",
+      route: "sandbox_only", price: 0, source: "mock",
+      reasons: ["Kill switch active — gateway is fail-closed until disabled"],
+    };
+    recordDecision(decision);
+    return {
+      decision,
+      response: problem(503, "kill-switch", "Gateway fail-closed",
+        "Incident kill switch is active. All proxy traffic is denied."),
+    };
+  }
+
   // 1. Trust — real Valiron operator gate when configured, else SDK/mock.
   let trust: TrustResult;
   if (isOperatorEnabled()) {
@@ -144,6 +161,19 @@ export async function handleProxyCall(input: ProxyCallInput): Promise<ProxyResul
       response: problem(429, "pending-evaluation", "Agent pending evaluation",
         "Your reputation is still being established. Retry after the cooldown.",
         { "retry-after": 30 }),
+    };
+  }
+
+  if (getIncident() === "read_only" && !isReadOnlyAllowed(trust.riskLevel, upstream.id)) {
+    const decision: Decision = {
+      ...base, allow: false, blockedBy: "read-only",
+      reasons: [`Read-only mode — upstream "${upstream.id}" blocked`],
+    };
+    recordDecision(decision);
+    return {
+      decision,
+      response: problem(403, "read-only", "Read-only incident mode",
+        "Only public GREEN tools/APIs are allowed while read-only mode is active."),
     };
   }
 

@@ -1,60 +1,45 @@
-"use client";
+/* ============================================================
+   TrustMCP — chrome: header, hero, tier explainer, footer
+   ============================================================ */
 
-import { useEffect, useState } from "react";
-import { useGateway, type Mode } from "./store";
-import { CopyBtn, FeedRow, TierBadge, Wordmark, highlightJson } from "./ui";
-
-const DEPLOY_URL = "https://vercel.com/new/clone?repository-url=https://github.com/Adarsha-gg/trustmcp";
-
-export function Header() {
-  const g = useGateway();
+function Header() {
+  const g = window.useGateway();
   return (
-    <header
-      style={{
-        position: "sticky", top: 0, zIndex: 50,
-        background: "oklch(0.155 0.006 274 / 0.78)",
-        backdropFilter: "blur(14px)",
-        borderBottom: "1px solid var(--line-soft)",
-      }}
-    >
+    <header style={{
+      position: "sticky", top: 0, zIndex: 50,
+      background: "oklch(0.155 0.006 274 / 0.78)",
+      backdropFilter: "blur(14px)",
+      borderBottom: "1px solid var(--line-soft)",
+    }}>
       <div className="shell between" style={{ height: 60 }}>
         <div className="row gap-16">
-          <Wordmark />
-          <span className="pill hide-sm" style={{ color: g.connected ? "var(--green)" : "var(--text-3)", borderColor: g.connected ? "var(--green-line)" : "var(--line)", background: g.connected ? "var(--green-bg)" : "var(--bg-2)" }}>
-            <span className="live-dot" style={{ width: 6, height: 6, background: g.connected ? "var(--green)" : "var(--text-3)" }} /> {g.connected ? "GATEWAY LIVE" : "CONNECTING"}
+          <window.Wordmark />
+          <span className="pill" style={{ color: "var(--green)", borderColor: "var(--green-line)", background: "var(--green-bg)" }}>
+            <span className="live-dot" style={{ width: 6, height: 6 }} /> GATEWAY LIVE
           </span>
-          {g.incident !== "normal" && (
-            <span className="pill hide-sm" style={{ color: g.incident === "fail_closed" ? "var(--red)" : "var(--amber)", borderColor: g.incident === "fail_closed" ? "var(--red-line)" : "var(--amber-line)", background: g.incident === "fail_closed" ? "var(--red-bg)" : "var(--amber-bg)" }}>
-              {g.incident === "fail_closed" ? "KILL SWITCH" : "READ ONLY"}
-            </span>
-          )}
         </div>
         <div className="row gap-12">
-          <div className="seg" title="Demo runs anywhere: real Valiron API, strict, or offline mock">
-            {(["auto", "live", "mock"] as Mode[]).map((m) => (
+          <div className="seg" title="Demo runs anywhere: real API, strict, or offline mock">
+            {["auto", "live", "mock"].map((m) => (
               <button key={m} className={g.mode === m ? "active" : ""} onClick={() => g.setMode(m)}>{m}</button>
             ))}
           </div>
-          <a className="btn btn-ghost btn-sm hide-sm" href="#passport">Passport</a>
-          <a className="btn btn-ghost btn-sm hide-sm" href="#guardrails">Guardrails</a>
-          <a className="btn btn-ghost btn-sm hide-sm" href="#byo">BYO API</a>
-          <a className="btn btn-primary btn-sm" href={DEPLOY_URL} target="_blank" rel="noreferrer">Deploy gateway</a>
+          <a className="btn btn-ghost btn-sm" href="#byo">Bring your API</a>
+          <button className="btn btn-primary btn-sm">Deploy gateway</button>
         </div>
       </div>
     </header>
   );
 }
 
-export function Hero() {
-  const g = useGateway();
+/* ---------- hero ---------- */
+function Hero() {
+  const g = window.useGateway();
   const recent = g.decisions.slice(0, 7);
-  const [origin, setOrigin] = useState("https://gate.trustmcp.io");
-  useEffect(() => setOrigin(window.location.origin), []);
-
   const mcp = `{
   "mcpServers": {
     "trustmcp": {
-      "url": "${origin}/api/mcp",
+      "url": "https://gate.trustmcp.io/api/mcp",
       "headers": { "x-agent-id": "$AGENT_ID" }
     }
   }
@@ -62,7 +47,8 @@ export function Hero() {
 
   return (
     <section className="section" style={{ paddingTop: 56, paddingBottom: 56 }}>
-      <div className="shell hero-grid">
+      <div className="shell" style={{ display: "grid", gridTemplateColumns: "1.05fr 0.95fr", gap: 48, alignItems: "center" }}>
+        {/* left */}
         <div>
           <span className="eyebrow"><span className="dot" /> TRUST · GUARDRAILS · PAYMENTS</span>
           <h1 style={{ fontSize: 52, marginTop: 18, letterSpacing: "-0.03em" }}>
@@ -81,10 +67,11 @@ export function Hero() {
             <a className="btn btn-ghost" href="#byo">Register an API</a>
           </div>
 
+          {/* mcp.json connect snippet */}
           <div className="mt-24">
             <div className="between" style={{ marginBottom: 8 }}>
               <span className="label" style={{ margin: 0 }}>Connect in one file · mcp.json</span>
-              <CopyBtn text={mcp} label="Copy config" />
+              <window.CopyBtn text={mcp} label="Copy config" />
             </div>
             <pre className="code" style={{ margin: 0 }}>
               <code dangerouslySetInnerHTML={{ __html: highlightJson(mcp) }} />
@@ -92,6 +79,7 @@ export function Hero() {
           </div>
         </div>
 
+        {/* right — live feed hero moment */}
         <div className="panel" style={{ overflow: "hidden", boxShadow: "var(--shadow-2)" }}>
           <div className="between" style={{ padding: "13px 16px", borderBottom: "1px solid var(--line-soft)" }}>
             <span className="row gap-8" style={{ fontSize: 13, fontWeight: 600 }}>
@@ -100,8 +88,10 @@ export function Hero() {
             <span className="mono dimmer" style={{ fontSize: 11 }}>/api/mcp · /api/gateway</span>
           </div>
           <div style={{ minHeight: 372 }}>
-            {recent.length === 0 && <div className="center dim mono" style={{ height: 372, fontSize: 13 }}>warming up…</div>}
-            {recent.map((d) => <FeedRow key={d.id} d={d} dense />)}
+            {recent.length === 0 && (
+              <div className="center dim mono" style={{ height: 372, fontSize: 13 }}>warming up…</div>
+            )}
+            {recent.map((d) => <window.FeedRow key={d.id} d={d} dense />)}
           </div>
           <div className="between mono" style={{ padding: "10px 16px", borderTop: "1px solid var(--line-soft)", fontSize: 11, color: "var(--text-3)" }}>
             <span>{g.stats.calls.toLocaleString()} calls gated</span>
@@ -117,13 +107,23 @@ export function Hero() {
   );
 }
 
-export function TierStrip() {
+/* tiny json highlighter for the snippet */
+function highlightJson(s) {
+  return s
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/("(?:[^"\\]|\\.)*")(\s*:)/g, '<span class="k">$1</span>$2')
+    .replace(/:\s*("(?:[^"\\]|\\.)*")/g, ': <span class="s">$1</span>');
+}
+
+/* ---------- tier explainer strip ---------- */
+function TierStrip() {
+  const T = window.TMCP;
   const rows = [
-    { tier: "AAA", range: "95–100", can: "Everything · send_payment, delete_records", },
-    { tier: "A", range: "80–87", can: "Reads, market data, customer records" },
-    { tier: "BA", range: "60–69", can: "Public reads · throttled route" },
-    { tier: "CAA", range: "35–49", can: "Sandbox only · up to 8× pricing" },
-    { tier: "C", range: "0–19", can: "Blocked" },
+    { tier: "AAA", range: "93–100", can: "Everything · send_payment, delete_records", grp: "green" },
+    { tier: "A",   range: "78–84",  can: "Reads, market data, customer records", grp: "green" },
+    { tier: "BA",  range: "60–69",  can: "Public reads · throttled route", grp: "amber" },
+    { tier: "CAA", range: "38–49",  can: "Sandbox only · 8× pricing", grp: "red" },
+    { tier: "C",   range: "0–24",   can: "Blocked", grp: "red" },
   ];
   return (
     <section className="section" style={{ paddingTop: 40, paddingBottom: 40 }}>
@@ -137,10 +137,10 @@ export function TierStrip() {
             ERC-8004 on-chain history + behavioral sandbox + World ID proof-of-personhood, distilled into a single AAA→C tier. Each endpoint declares the minimum it accepts.
           </p>
         </div>
-        <div className="tier-grid">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 12 }}>
           {rows.map((r) => (
             <div key={r.tier} className="panel" style={{ padding: 16 }}>
-              <TierBadge tier={r.tier} />
+              <window.TierBadge tier={r.tier} />
               <div className="mono dimmer mt-12" style={{ fontSize: 11 }}>SCORE {r.range}</div>
               <div className="mt-8" style={{ fontSize: 13, color: "var(--text-1)", lineHeight: 1.4 }}>{r.can}</div>
             </div>
@@ -151,17 +151,18 @@ export function TierStrip() {
   );
 }
 
-export function Footer() {
+/* ---------- footer ---------- */
+function Footer() {
   return (
     <footer style={{ borderTop: "1px solid var(--line-soft)", padding: "40px 0 56px", marginTop: 8 }}>
       <div className="shell between wrap" style={{ gap: 20 }}>
         <div>
-          <Wordmark />
+          <window.Wordmark />
           <p className="dim" style={{ fontSize: 13, marginTop: 12, maxWidth: "42ch" }}>
             Trust, guardrails & payments for AI agents. One gate in front of any tool or API.
           </p>
         </div>
-        <div className="row wrap" style={{ alignItems: "flex-start", gap: 40 }}>
+        <div className="row gap-24 wrap" style={{ alignItems: "flex-start", gap: 40 }}>
           <div className="col gap-8">
             <span className="label" style={{ margin: 0 }}>Endpoints</span>
             <span className="mono dim" style={{ fontSize: 12 }}>POST /api/mcp</span>
@@ -172,9 +173,11 @@ export function Footer() {
             <span className="mono dim" style={{ fontSize: 12 }}>x402 · ERC-8004</span>
             <span className="mono dim" style={{ fontSize: 12 }}>RFC 9457 · World ID</span>
           </div>
-          <a className="btn btn-primary" href={DEPLOY_URL} target="_blank" rel="noreferrer">Deploy gateway</a>
+          <button className="btn btn-primary">Deploy gateway</button>
         </div>
       </div>
     </footer>
   );
 }
+
+Object.assign(window, { Header, Hero, TierStrip, Footer });

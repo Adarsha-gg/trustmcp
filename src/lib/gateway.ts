@@ -1,5 +1,7 @@
 import { recordDecision } from "./events";
 import { checkGuardrails, recordSpend } from "./guardrails";
+import { getIncident } from "./config";
+import { isReadOnlyAllowed } from "./incident";
 import { isOperatorEnabled, operatorGate } from "./operator";
 import { dynamicPrice, TOOLS_BY_NAME } from "./tools";
 import { evaluateAgent } from "./trust";
@@ -68,6 +70,26 @@ export async function handleToolCall(
     return { decision, error: { code: 401, message: "Missing agent identity" } };
   }
 
+  if (getIncident() === "fail_closed") {
+    const decision: Decision = {
+      id: decisionId(),
+      ts: Date.now(),
+      agentId,
+      tool: toolName,
+      allow: false,
+      blockedBy: "kill-switch",
+      score: 0,
+      tier: "C",
+      riskLevel: "RED",
+      route: "sandbox_only",
+      price: 0,
+      reasons: ["Kill switch active — gateway is fail-closed until disabled"],
+      source: "mock",
+    };
+    recordDecision(decision);
+    return { decision, error: { code: 503, message: "Gateway fail-closed" } };
+  }
+
   let trust: TrustResult;
   if (isOperatorEnabled()) {
     // Real Valiron operator gate — also logs billable usage to the dashboard.
@@ -115,6 +137,17 @@ export async function handleToolCall(
     };
     recordDecision(decision);
     return { decision, error: { code: 403, message: "Agent pending evaluation" } };
+  }
+
+  if (getIncident() === "read_only" && !isReadOnlyAllowed(tool.risk, toolName)) {
+    const decision: Decision = {
+      ...base,
+      allow: false,
+      blockedBy: "read-only",
+      reasons: [`Read-only mode — "${toolName}" blocked; only public GREEN tools allowed`],
+    };
+    recordDecision(decision);
+    return { decision, error: { code: 403, message: "Read-only incident mode" } };
   }
 
   if (trust.score < tool.minScore) {

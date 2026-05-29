@@ -73,7 +73,14 @@ export interface Decision {
   /** For "api" decisions: the upstream id (e.g. "weather"). */
   upstream?: string;
   allow: boolean;
-  blockedBy?: "trust-gate" | "tool-policy" | "pending-eval" | "guardrail" | "payment-required";
+  blockedBy?:
+    | "trust-gate"
+    | "tool-policy"
+    | "pending-eval"
+    | "guardrail"
+    | "payment-required"
+    | "kill-switch"
+    | "read-only";
   payment?: {
     state: "required" | "settled";
     amount: number;
