@@ -1,33 +1,33 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const space = Space_Grotesk({
+  variable: "--font-space",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const jbmono = JetBrains_Mono({
+  variable: "--font-jbmono",
   subsets: ["latin"],
+  weight: ["400", "500", "700"],
 });
 
 export const metadata: Metadata = {
-  title: "TrustMCP — Trust-gated MCP Gateway",
-  description: "Valiron-powered trust gating for MCP tool calls.",
+  title: "TrustMCP — Trust, guardrails & payments for AI agents",
+  description:
+    "A gate in front of any tool or API that decides which agents to trust — reputation, behavioral guardrails, and x402 payments in one layer.",
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col">{children}</body>
+    <html lang="en" className={`${space.variable} ${jbmono.variable} h-full antialiased`}>
+      <body className="min-h-full">
+        <div id="app-root">{children}</div>
+      </body>
     </html>
   );
 }
