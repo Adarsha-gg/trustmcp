@@ -9,6 +9,8 @@
  *   npx tsx scripts/agent.ts low-trust-scraper delete_records '{"table":"users"}'
  */
 
+export {};
+
 const BASE = process.env.TRUSTMCP_URL ?? "http://localhost:3000";
 const ENDPOINT = `${BASE}/api/mcp`;
 

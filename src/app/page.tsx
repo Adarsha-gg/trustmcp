@@ -76,6 +76,7 @@ export default function Dashboard() {
   const [busy, setBusy] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
   const [mode, setModeState] = useState<Mode>("auto");
+  const [operator, setOperator] = useState(false);
 
   useEffect(() => {
     fetch("/api/catalog")
@@ -87,7 +88,10 @@ export default function Dashboard() {
       .catch(() => {});
     fetch("/api/config")
       .then((r) => r.json())
-      .then((d) => setModeState(d.mode))
+      .then((d) => {
+        setModeState(d.mode);
+        setOperator(!!d.operator);
+      })
       .catch(() => {});
 
     const es = new EventSource("/api/events");
@@ -140,6 +144,21 @@ export default function Dashboard() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <span
+            title={
+              operator
+                ? "Connected to a Valiron operator — calls are gated by the real gate and billed on your dashboard"
+                : "Local trust layer — set VALIRON_OPERATOR_KEY to enable real billing"
+            }
+            className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs ${
+              operator
+                ? "border-sky-400/40 bg-sky-400/10 text-sky-300"
+                : "border-white/15 bg-white/5 text-white/40"
+            }`}
+          >
+            <span className={`h-2 w-2 rounded-full ${operator ? "bg-sky-400" : "bg-white/30"}`} />
+            {operator ? "operator: live billing" : "operator: local"}
+          </span>
           <ModeToggle mode={mode} onChange={setMode} />
           <span
             className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs ${

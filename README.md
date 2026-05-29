@@ -82,6 +82,30 @@ npx tsx scripts/agent.ts unknown-newcomer get_market_data '{"symbol":"SOL"}'
 7. **Connect** tab → copy the `mcp.json` and show it drops straight into an MCP
    client. Flip the **mode toggle** to prove it's the real Valiron API.
 
+## Real operator billing (optional)
+
+By default TrustMCP gates locally. Flip on the **real Valiron operator** to route
+every tool call through the production trust gate *and* log billable usage to
+your [Valiron dashboard](https://valiron.co/dashboard) (revenue, agents, call
+logs, analytics):
+
+```bash
+# 1. Create your operator account + register the paid endpoints + print your key
+VALIRON_EMAIL=you@example.com VALIRON_PASSWORD=secret VALIRON_NAME="You" \
+  npx tsx scripts/register-operator.ts
+
+# 2. Put the printed key in .env.local
+echo 'VALIRON_OPERATOR_KEY=val_op_xxxx' >> .env.local
+
+# 3. Restart — the header badge flips to "operator: live billing"
+npm run dev
+```
+
+When `VALIRON_OPERATOR_KEY` is set, `src/lib/operator.ts` drives the SDK's
+`paywall` middleware from inside the Next.js route handlers (via a small
+Express-shaped shim), so gating decisions and usage are recorded on the real
+Valiron backend. Remove the key to fall back to the local trust layer.
+
 ## How the trust gate works
 
 `src/lib/gateway.ts` runs every tool call through `evaluateAgent()`

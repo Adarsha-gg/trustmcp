@@ -1,7 +1,8 @@
 import { recordDecision } from "./events";
+import { isOperatorEnabled, operatorGate } from "./operator";
 import { dynamicPrice, TOOLS_BY_NAME } from "./tools";
 import { evaluateAgent } from "./trust";
-import type { Decision } from "./types";
+import type { Decision, TrustResult } from "./types";
 
 export interface GateOutcome {
   decision: Decision;
@@ -54,7 +55,28 @@ export async function handleToolCall(
     return { decision, error: { code: 401, message: "Missing agent identity" } };
   }
 
-  const trust = await evaluateAgent(agentId, { minScore: tool.minScore });
+  let trust: TrustResult;
+  if (isOperatorEnabled()) {
+    // Real Valiron operator gate — also logs billable usage to the dashboard.
+    const og = await operatorGate(agentId, {
+      pricePerCall: tool.basePrice,
+      minTrustScore: tool.minScore,
+      tool: toolName,
+    });
+    trust = {
+      agentId,
+      allow: og.allow,
+      score: og.score,
+      tier: og.tier,
+      riskLevel: og.riskLevel,
+      route: og.route,
+      reasons: og.reasons,
+      source: "live",
+      pending: og.pending,
+    };
+  } else {
+    trust = await evaluateAgent(agentId, { minScore: tool.minScore });
+  }
   const price = dynamicPrice(tool.basePrice, trust.tier);
 
   const base: Omit<Decision, "allow" | "blockedBy"> = {

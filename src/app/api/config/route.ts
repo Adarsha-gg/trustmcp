@@ -1,11 +1,12 @@
 import { NextRequest } from "next/server";
 import { getChain, getMode, setChain, setMode, type TrustMode } from "@/lib/config";
+import { isOperatorEnabled } from "@/lib/operator";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  return Response.json({ mode: getMode(), chain: getChain() });
+  return Response.json({ mode: getMode(), chain: getChain(), operator: isOperatorEnabled() });
 }
 
 export async function POST(req: NextRequest) {
