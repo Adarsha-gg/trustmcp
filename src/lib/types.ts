@@ -44,6 +44,25 @@ export interface ToolDef {
   run: (args: Record<string, unknown>) => Promise<unknown>;
 }
 
+export interface AgentPassport {
+  agentId: string;
+  source: "live" | "mock";
+  name: string | null;
+  wallet: string | null;
+  chain: string;
+  score: number;
+  tier: MoodysTier;
+  riskLevel: RiskLevel;
+  route: RouteDecision;
+  reasons: string[];
+  signals: {
+    onchain: { present: boolean; feedbackCount: number; averageScore: number };
+    sandbox: { present: boolean; tier: MoodysTier | null; graduated: boolean | null };
+    worldId: { verified: boolean; level: string | null };
+    icebreaker: { present: boolean; handles: string[] };
+  };
+}
+
 export interface Decision {
   id: string;
   ts: number;

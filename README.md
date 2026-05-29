@@ -33,9 +33,19 @@ malicious or unproven agents.
   Valiron dynamic-pricing pattern) so abuse subsidizes its own risk.
 - **Auto-sandbox** — unknown agents are held `pending` evaluation, never allowed
   through blind.
-- **Live security console** — real-time dashboard of every allow/deny decision.
-- **Bulletproof demo** — `VALIRON_MODE=auto` uses the real SDK when reachable and
-  falls back to deterministic local profiles offline, so the stage demo never dies.
+- **Agent Passport inspector** — resolve any agent ID / wallet into its full
+  Valiron trust profile: on-chain ERC-8004 reputation, behavioral sandbox tier,
+  World ID proof-of-personhood, and routing — a credit report for agents.
+- **Attack-wave simulator** — unleash a swarm of malicious agents at the most
+  dangerous tools and watch the gateway hold the line in real time.
+- **Live security console** — real-time SSE dashboard of every allow/deny
+  decision, with revenue, allow/block, and per-agent stats.
+- **Runtime trust-mode toggle** — flip `auto` / `live` / `mock` from the UI with
+  no restart. `live` is strict real-API-only; `mock` is fully offline.
+- **Frictionless connect** — copy-paste `mcp.json` for Claude/Cursor and a ready
+  curl command, generated for your host.
+- **Bulletproof demo** — `auto` mode uses the real SDK when reachable and falls
+  back to deterministic local profiles offline, so the stage demo never dies.
 
 ## Quick start
 
@@ -60,13 +70,17 @@ npx tsx scripts/agent.ts unknown-newcomer get_market_data '{"symbol":"SOL"}'
 
 ## Suggested 3-minute demo script
 
-1. Open the dashboard. Show the gated tool catalog (note `send_payment` needs ≥85).
+1. **Live console** — show the gated tool catalog (note `send_payment` needs ≥85).
 2. Click **Atlas (AAA)** → every call is allowed, cheapest pricing.
 3. Click **Gremlin (CAA)** → reads cost 8×, `read_customer_records` and
    `delete_records` are **blocked** in red.
 4. Click **Reaper (C)** → `send_payment` for $100k is denied on the spot.
-5. Click **Nova (new)** → held *pending evaluation* (auto-sandbox).
-6. Point out the revenue counter — bad actors paid the premium, good actors got discounts.
+5. Click **☠ Simulate attack wave** → ~16 malicious agents hammer the gateway;
+   watch the block counter spike while the two trusted agents still get through.
+6. **Inspect agent** tab → look up `25459` (real ERC-8004 id in `live`/`auto`
+   mode) and show its on-chain reputation, sandbox tier, and World ID badge.
+7. **Connect** tab → copy the `mcp.json` and show it drops straight into an MCP
+   client. Flip the **mode toggle** to prove it's the real Valiron API.
 
 ## How the trust gate works
 
@@ -83,17 +97,21 @@ agent IDs (e.g. `25459`) via the `x-agent-id` header.
 ```
 src/
   app/
-    page.tsx              # live dashboard
+    page.tsx              # tabbed console: live / inspect / connect
     api/mcp/route.ts      # MCP JSON-RPC gateway
     api/events/route.ts   # SSE decision stream
     api/simulate/route.ts # drive demo agents
+    api/attack/route.ts   # red-team attack-wave simulator
+    api/inspect/route.ts  # agent passport lookup
+    api/config/route.ts   # runtime trust-mode toggle
     api/catalog/route.ts  # tools + agents for the UI
   lib/
-    trust.ts              # Valiron integration + offline fallback
+    trust.ts              # Valiron integration + passport + offline fallback
     gateway.ts            # core gate-then-execute logic
     tools.ts              # gated tool catalog + dynamic pricing
     agents.ts             # demo agents
     events.ts             # in-memory decision bus
+    config.ts             # runtime trust-mode config
 scripts/agent.ts          # CLI MCP client
 ```
 
