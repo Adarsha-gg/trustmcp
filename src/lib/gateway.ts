@@ -4,11 +4,22 @@ import { isOperatorEnabled, operatorGate } from "./operator";
 import { dynamicPrice, TOOLS_BY_NAME } from "./tools";
 import { evaluateAgent } from "./trust";
 import type { Decision, TrustResult } from "./types";
+import {
+  buildPaymentRequirements,
+  PAYMENT_ASSET,
+  PAYMENT_NETWORK,
+  verifyAndSettle,
+  type X402Requirements,
+} from "./x402";
 
 export interface GateOutcome {
   decision: Decision;
   result?: unknown;
   error?: { code: number; message: string };
+  /** Present when the tool is paid and payment is required (HTTP 402). */
+  paymentRequired?: X402Requirements;
+  /** Present when a payment settled — receipt for the x-payment-response header. */
+  settlement?: { amount: number; txHash: string };
 }
 
 let counter = 0;
@@ -29,6 +40,7 @@ export async function handleToolCall(
   agentId: string | null,
   toolName: string,
   args: Record<string, unknown>,
+  payment?: string | null,
 ): Promise<GateOutcome> {
   const tool = TOOLS_BY_NAME.get(toolName);
 
@@ -141,6 +153,44 @@ export async function handleToolCall(
     };
   }
 
+  // x402: paid tools require settled payment before execution. Price is already
+  // trust-adjusted, so low-trust agents are quoted (and pay) more.
+  if (price > 0) {
+    const settled = verifyAndSettle(payment ?? null, price);
+    if (!settled.ok) {
+      const decision: Decision = {
+        ...base,
+        allow: false,
+        blockedBy: "payment-required",
+        reasons: [`402 Payment Required — $${price.toFixed(3)} ${PAYMENT_ASSET} (${settled.reason ?? "payment needed"})`],
+        payment: { state: "required", amount: price, network: PAYMENT_NETWORK(), asset: PAYMENT_ASSET },
+      };
+      recordDecision(decision);
+      return {
+        decision,
+        error: { code: 402, message: `Payment required: $${price.toFixed(3)} ${PAYMENT_ASSET}` },
+        paymentRequired: buildPaymentRequirements(toolName, price),
+      };
+    }
+
+    const result = await tool.run(args);
+    recordSpend(agentId, price);
+    const decision: Decision = {
+      ...base,
+      allow: true,
+      payment: {
+        state: "settled",
+        amount: settled.amount,
+        network: PAYMENT_NETWORK(),
+        asset: PAYMENT_ASSET,
+        txHash: settled.txHash,
+      },
+    };
+    recordDecision(decision);
+    return { decision, result, settlement: { amount: settled.amount, txHash: settled.txHash! } };
+  }
+
+  // Free tool — no payment needed.
   const result = await tool.run(args);
   recordSpend(agentId, price);
   const decision: Decision = { ...base, allow: true };

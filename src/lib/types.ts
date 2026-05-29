@@ -69,7 +69,14 @@ export interface Decision {
   agentId: string;
   tool: string;
   allow: boolean;
-  blockedBy?: "trust-gate" | "tool-policy" | "pending-eval" | "guardrail";
+  blockedBy?: "trust-gate" | "tool-policy" | "pending-eval" | "guardrail" | "payment-required";
+  payment?: {
+    state: "required" | "settled";
+    amount: number;
+    network: string;
+    asset: string;
+    txHash?: string;
+  };
   score: number;
   tier: MoodysTier;
   riskLevel: RiskLevel;

@@ -36,6 +36,9 @@ starts misbehaving is automatically quarantined.
 - Runtime trust-mode toggle (auto / live / mock)
 - Frictionless Connect tab (mcp.json + curl)
 - Real Valiron operator billing (paywall middleware in Next + usage logging)
+- x402 agentic payments — 402 challenge + `x-payment` settlement + receipts,
+  over both the MCP endpoint and a dedicated HTTP endpoint (trust-priced)
+- Seamless single-page UI: drop-in `mcp.json` hero + read-only activity log
 
 ## 🔥 In progress / next (the flagship)
 
@@ -56,8 +59,8 @@ starts misbehaving is automatically quarantined.
 3. **Human-in-the-loop approvals** — high-risk calls (e.g. `send_payment` > $X)
    pause and ping a Slack/Telegram/web approval before executing; agent gets a
    202 + resumes on approve. Pairs with Valiron's webhook events.
-4. **x402 settlement integration** — wire the 402 payment flow end-to-end so a
-   throttled agent actually pays the risk-adjusted price on-chain to proceed.
+4. ~~**x402 settlement integration**~~ ✅ done (mock settlement; swap in a real
+   facilitator / on-chain settle next). Next: real USDC settlement on Base.
 5. **Audit log + tamper-evident trail** — persist every decision to a database
    and commit Valiron `getAgentSnapshot()` hash chains on-chain for provable,
    immutable history (compliance / disputes).

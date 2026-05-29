@@ -16,6 +16,7 @@ type Decision = {
   price: number;
   reasons: string[];
   source: "live" | "mock";
+  payment?: { state: "required" | "settled"; amount: number; network: string; asset: string; txHash?: string };
 };
 type Mode = "auto" | "live" | "mock";
 
@@ -65,6 +66,8 @@ export default function App() {
 
   const allowed = decisions.filter((d) => d.allow).length;
   const blocked = decisions.length - allowed;
+  const settled = decisions.filter((d) => d.payment?.state === "settled");
+  const paidTotal = settled.reduce((s, d) => s + (d.payment?.amount ?? 0), 0);
 
   return (
     <div className="mx-auto w-full max-w-3xl px-6 py-10">
@@ -88,9 +91,10 @@ export default function App() {
           <span className="text-sky-400">One line. No dashboard required.</span>
         </h1>
         <p className="mt-3 text-white/55">
-          Point your MCP client at TrustMCP. Every tool call is scored by Valiron and policed by
-          guardrails <span className="text-white/80">before it runs</span> — trusted agents flow
-          through, rogue or hijacked ones get blocked automatically.
+          Point your MCP client at TrustMCP. Every tool call is scored by Valiron, policed by
+          guardrails, and paid via <span className="text-white/80">x402</span> —{" "}
+          <span className="text-white/80">before it runs</span>. Trusted agents flow through and pay
+          less; rogue, hijacked, or unpaid ones get blocked automatically.
         </p>
 
         <div className="mt-6">
@@ -119,10 +123,11 @@ export default function App() {
           </button>
         </div>
 
-        <div className="mt-4 grid grid-cols-3 gap-3">
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Stat label="Calls" value={String(decisions.length)} />
           <Stat label="Allowed" value={String(allowed)} accent="text-emerald-400" />
           <Stat label="Blocked" value={String(blocked)} accent="text-rose-400" />
+          <Stat label={`Paid via x402 (${settled.length})`} value={`$${paidTotal.toFixed(3)}`} accent="text-sky-300" />
         </div>
 
         <div className="mt-4 space-y-2">
@@ -164,6 +169,8 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
 }
 
 function Row({ d }: { d: Decision }) {
+  const settled = d.payment?.state === "settled";
+  const need402 = d.blockedBy === "payment-required";
   return (
     <div className={`flash-in flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2.5 text-sm ${d.allow ? "border-emerald-400/20 bg-emerald-400/[0.04]" : "border-rose-500/25 bg-rose-500/[0.05]"}`}>
       <span className={`rounded px-1.5 py-0.5 text-[11px] font-bold ${d.allow ? "bg-emerald-400/20 text-emerald-300" : "bg-rose-500/20 text-rose-300"}`}>{d.allow ? "ALLOW" : "DENY"}</span>
@@ -171,10 +178,28 @@ function Row({ d }: { d: Decision }) {
       <span className="text-white/30">→</span>
       <span className="font-mono text-sky-300">{d.tool}</span>
       <span className={`ml-auto rounded border px-1.5 py-0.5 text-[11px] font-semibold ${tierColor(d.tier)}`}>{d.tier} · {d.score}</span>
-      {d.price > 0 && <span className="rounded bg-white/5 px-1.5 py-0.5 text-[11px] text-white/60">${d.price.toFixed(3)}</span>}
+      {settled && (
+        <span title={d.payment?.txHash} className="rounded bg-sky-400/15 px-1.5 py-0.5 text-[11px] font-semibold text-sky-300">
+          PAID ${d.payment!.amount.toFixed(3)}
+        </span>
+      )}
+      {need402 && (
+        <span className="rounded bg-amber-400/15 px-1.5 py-0.5 text-[11px] font-semibold text-amber-300">
+          402 ${d.payment?.amount.toFixed(3)}
+        </span>
+      )}
+      {!settled && !need402 && d.price > 0 && (
+        <span className="rounded bg-white/5 px-1.5 py-0.5 text-[11px] text-white/60">${d.price.toFixed(3)}</span>
+      )}
+      {settled && d.payment?.txHash && (
+        <span className="w-full truncate font-mono text-[11px] text-white/35">
+          x402 settled · {d.payment.network}/{d.payment.asset} · {d.payment.txHash}
+        </span>
+      )}
       {!d.allow && d.reasons?.[0] && (
         <p className="w-full text-xs text-white/45">
           {d.blockedBy === "guardrail" && <span className="mr-1 font-semibold text-fuchsia-300">guardrail:</span>}
+          {d.blockedBy === "payment-required" && <span className="mr-1 font-semibold text-amber-300">x402:</span>}
           {d.reasons[0]}
         </p>
       )}

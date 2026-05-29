@@ -65,6 +65,17 @@ export const DEMO_AGENTS: DemoAgent[] = [
     calls: [{ tool: "get_market_data", args: { symbol: "SOL" } }],
   },
   {
+    id: "broke-agent",
+    label: "Penny (no funds)",
+    blurb:
+      "Trusted enough to pass the gate, but attaches no payment. Hits the x402 wall: 402 Payment Required.",
+    expected: "blocked",
+    calls: [
+      { tool: "get_market_data", args: { symbol: "BTC" } },
+      { tool: "read_customer_records", args: { customerId: "c_42" } },
+    ],
+  },
+  {
     id: "hijacked-agent",
     label: "Atlas (hijacked)",
     blurb:

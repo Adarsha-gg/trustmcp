@@ -31,6 +31,12 @@ malicious or unproven agents.
   tools (`send_payment`, `delete_records`) demand AAA-grade trust.
 - **Risk-adjusted dynamic pricing** — bad agents pay up to 8× per call (the
   Valiron dynamic-pricing pattern) so abuse subsidizes its own risk.
+- **x402 agentic payments** — paid tools answer `402 Payment Required` with a
+  spec-shaped `accepts` block (scheme, trust-priced amount, payTo, network,
+  asset). The agent attaches an `x-payment` header and retries; the gateway
+  verifies + settles and returns an `x-payment-response` receipt — all *after*
+  trust + guardrails pass. Works over the MCP endpoint and a dedicated HTTP
+  endpoint (`/api/x402/<tool>`).
 - **Auto-sandbox** — unknown agents are held `pending` evaluation, never allowed
   through blind.
 - **Guardrails engine** — behavioral policing *after* the trust gate, so even a
@@ -125,6 +131,27 @@ When `VALIRON_OPERATOR_KEY` is set, `src/lib/operator.ts` drives the SDK's
 `paywall` middleware from inside the Next.js route handlers (via a small
 Express-shaped shim), so gating decisions and usage are recorded on the real
 Valiron backend. Remove the key to fall back to the local trust layer.
+
+## x402 payment handshake (try it)
+
+```bash
+# 1) Call a paid tool with no payment -> 402 + accepts
+curl -i -X POST http://localhost:3000/api/x402/get_market_data \
+  -H 'x-agent-id: aaa-trusted-agent' -H 'content-type: application/json' \
+  -d '{"symbol":"BTC"}'
+# => HTTP 402  { "accepts": [{ "scheme":"exact","maxAmountRequired":"0.020", ... }] }
+
+# 2) Attach an x-payment authorization and retry -> 200 + x-payment-response
+PAY=$(node -e "console.log(Buffer.from(JSON.stringify({amount:1.0,ts:Date.now()})).toString('base64'))")
+curl -i -X POST http://localhost:3000/api/x402/get_market_data \
+  -H 'x-agent-id: aaa-trusted-agent' -H "x-payment: $PAY" \
+  -H 'content-type: application/json' -d '{"symbol":"BTC"}'
+# => HTTP 200  { result, payment: { state:"settled", amount:0.02, txHash } }
+```
+
+Low-trust agents are blocked **before** they ever get a price. In the dashboard
+demo, the **Penny (no funds)** agent shows the raw `402` rows; everyone else
+settles via x402 and shows green `PAID` rows.
 
 ## How the trust gate works
 

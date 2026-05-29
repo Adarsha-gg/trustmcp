@@ -82,17 +82,26 @@ export async function POST(req: NextRequest) {
       const args = (params?.arguments as Record<string, unknown>) ?? {};
       if (!name) return err(id, -32602, "Missing tool name");
 
-      const outcome = await handleToolCall(agentId, name, args);
+      const meta = params?._meta as Record<string, unknown> | undefined;
+      const payment = req.headers.get("x-payment") ?? (meta?.payment as string | undefined) ?? null;
+
+      const outcome = await handleToolCall(agentId, name, args, payment);
 
       if (outcome.error) {
         // Surface as a tool result with isError so MCP clients see the denial.
+        // For 402, include the x402 `accepts` so the agent can pay and retry.
         return ok(id, {
           isError: true,
           content: [
             {
               type: "text",
               text: JSON.stringify(
-                { denied: true, ...outcome.error, decision: outcome.decision },
+                {
+                  denied: true,
+                  ...outcome.error,
+                  ...(outcome.paymentRequired ? { paymentRequired: outcome.paymentRequired } : {}),
+                  decision: outcome.decision,
+                },
                 null,
                 2,
               ),
@@ -110,6 +119,7 @@ export async function POST(req: NextRequest) {
                 allowed: true,
                 tier: outcome.decision.tier,
                 price: outcome.decision.price,
+                payment: outcome.decision.payment ?? null,
                 result: outcome.result,
               },
               null,
