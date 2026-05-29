@@ -39,6 +39,11 @@ starts misbehaving is automatically quarantined.
 - x402 agentic payments — 402 challenge + `x-payment` settlement + receipts,
   over both the MCP endpoint and a dedicated HTTP endpoint (trust-priced)
 - Seamless single-page UI: drop-in `mcp.json` hero + read-only activity log
+- **Bring Your Own API — trust-gated reverse proxy** (`/api/gateway/<id>/<path>`):
+  register any real HTTPS API and it becomes monetized + protected (identity →
+  trust → guardrails → x402 → forward) with zero code changes. SSRF-guarded,
+  RFC 9457 machine-readable errors, seeded with a live upstream (Open-Meteo).
+  This is the productized customer use case, not a mock tool.
 
 ## 🔥 In progress / next (the flagship)
 

@@ -25,6 +25,26 @@ malicious or unproven agents.
 
 ## Features
 
+- **Bring Your Own API — trust-gated reverse proxy** (the real use case). Point
+  TrustMCP at *any* existing HTTPS API and it instantly becomes a monetized,
+  protected endpoint at `/api/gateway/<id>/<path>`. Every request runs the full
+  pipeline — **identity → Valiron trust → guardrails → x402 payment** — *before*
+  your origin is ever touched. This is what an API/data/compute seller in the
+  agent economy actually needs: x402 gives you *payments*, but **payment ≠ trust**.
+  Sellers can't tell a paying agent from an abusive scraper; this closes that
+  gap with zero code changes. SSRF-guarded (public HTTPS only). Denials use
+  RFC 9457 `application/problem+json` with typed codes + `Retry-After`, so the
+  *calling agent* can react programmatically. Ships seeded with a live upstream
+  (Open-Meteo weather) so it works end-to-end out of the box.
+
+  ```bash
+  # Trusted, funded agent → real upstream data + x-payment-response receipt
+  curl -H "x-agent-id: aaa-trusted-agent" -H "x-payment: <auth>" \
+    "$HOST/api/gateway/weather/v1/forecast?latitude=37.77&longitude=-122.42&current=temperature_2m"
+  # Low-trust scraper → 403 problem+json (never reaches your origin)
+  # Trusted but unpaid → 402 + x402 accepts block (trust-priced)
+  ```
+
 - **MCP-compatible endpoint** (`POST /api/mcp`, JSON-RPC: `initialize`,
   `tools/list`, `tools/call`) — point any MCP client at it.
 - **Per-tool trust policy** — each tool declares a minimum Valiron score; risky

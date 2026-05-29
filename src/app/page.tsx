@@ -107,6 +107,11 @@ export default function App() {
         </p>
       </section>
 
+      {/* BRING YOUR OWN API — the real use case */}
+      <section className="mt-14">
+        <Upstreams />
+      </section>
+
       {/* OBSERVABILITY — read-only "what happened" */}
       <section className="mt-12">
         <div className="flex items-end justify-between">
@@ -236,4 +241,208 @@ function Connect() {
       </button>
     </div>
   );
+}
+
+type Upstream = {
+  id: string;
+  name: string;
+  baseUrl: string;
+  pricePerCall: number;
+  minScore: number;
+  description: string;
+  builtin?: boolean;
+};
+
+function encodeTestPayment(amount: number): string {
+  const payload = { scheme: "exact", network: "ethereum", amount, asset: "USDC", payer: "test-wallet", ts: Date.now() };
+  return typeof btoa !== "undefined" ? btoa(JSON.stringify(payload)) : "";
+}
+
+function Upstreams() {
+  const [items, setItems] = useState<Upstream[]>([]);
+  const [origin, setOrigin] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [form, setForm] = useState({ name: "", baseUrl: "", pricePerCall: "0.01", minScore: "50" });
+  const [err, setErr] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    fetch("/api/upstreams").then((r) => r.json()).then((d) => setItems(d.upstreams ?? [])).catch(() => {});
+  }, []);
+  useEffect(() => { setOrigin(window.location.origin); load(); }, [load]);
+
+  const add = useCallback(async () => {
+    setErr(null);
+    setAdding(true);
+    try {
+      const res = await fetch("/api/upstreams", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.name, baseUrl: form.baseUrl,
+          pricePerCall: Number(form.pricePerCall), minScore: Number(form.minScore),
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok) { setErr(d.error ?? "Failed to register"); return; }
+      setForm({ name: "", baseUrl: "", pricePerCall: "0.01", minScore: "50" });
+      load();
+    } finally {
+      setAdding(false);
+    }
+  }, [form, load]);
+
+  const remove = useCallback(async (id: string) => {
+    await fetch(`/api/upstreams?id=${encodeURIComponent(id)}`, { method: "DELETE" }).catch(() => {});
+    load();
+  }, [load]);
+
+  return (
+    <div>
+      <h2 className="text-sm font-semibold uppercase tracking-wider text-white/70">Bring your own API</h2>
+      <p className="mt-1 text-sm text-white/45">
+        Point TrustMCP at any existing HTTPS API. It becomes a{" "}
+        <span className="text-white/75">trust-gated, x402-monetized</span> endpoint — agents are scored
+        by Valiron and charged per call <span className="text-white/75">before</span> your origin is ever
+        hit. Zero code changes.
+      </p>
+
+      <div className="mt-5 space-y-3">
+        {items.map((u) => (
+          <UpstreamCard key={u.id} u={u} origin={origin} onRemove={remove} />
+        ))}
+      </div>
+
+      <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.02] p-4">
+        <div className="text-xs font-semibold uppercase tracking-wider text-white/50">Register an API</div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_1.4fr_auto_auto]">
+          <input
+            value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+            placeholder="My API" className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none placeholder:text-white/25 focus:border-sky-400/50"
+          />
+          <input
+            value={form.baseUrl} onChange={(e) => setForm({ ...form, baseUrl: e.target.value })}
+            placeholder="https://api.example.com" className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 font-mono text-sm outline-none placeholder:text-white/25 focus:border-sky-400/50"
+          />
+          <input
+            value={form.pricePerCall} onChange={(e) => setForm({ ...form, pricePerCall: e.target.value })}
+            placeholder="$/call" title="USD per call (0 = free)" className="w-20 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none focus:border-sky-400/50"
+          />
+          <input
+            value={form.minScore} onChange={(e) => setForm({ ...form, minScore: e.target.value })}
+            placeholder="minScore" title="Minimum Valiron score" className="w-24 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none focus:border-sky-400/50"
+          />
+        </div>
+        <div className="mt-3 flex items-center gap-3">
+          <button
+            onClick={add} disabled={adding || !form.name || !form.baseUrl}
+            className="rounded-lg border border-white/15 bg-white/[0.06] px-4 py-2 text-sm font-semibold transition hover:bg-white/10 disabled:opacity-50"
+          >
+            {adding ? "Registering…" : "Protect this API"}
+          </button>
+          {err && <span className="text-xs text-rose-300">{err}</span>}
+          <span className="ml-auto text-xs text-white/30">HTTPS public hosts only — SSRF-guarded</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function UpstreamCard({ u, origin, onRemove }: { u: Upstream; origin: string; onRemove: (id: string) => void }) {
+  const gateway = `${origin}/api/gateway/${u.id}`;
+  const samplePath = u.id === "weather"
+    ? "/v1/forecast?latitude=37.77&longitude=-122.42&current=temperature_2m"
+    : "/";
+  const [path, setPath] = useState(samplePath);
+  const [copied, setCopied] = useState(false);
+  const [out, setOut] = useState<{ agent: string; status: number; body: string } | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const test = useCallback(async (agent: string, pay: boolean) => {
+    setBusy(agent);
+    setOut(null);
+    try {
+      const headers: Record<string, string> = { "x-agent-id": agent };
+      if (pay && u.pricePerCall > 0) headers["x-payment"] = encodeTestPayment(1.0);
+      const res = await fetch(gateway + path, { headers });
+      const body = await res.text();
+      setOut({ agent, status: res.status, body });
+    } catch {
+      setOut({ agent, status: 0, body: "request failed" });
+    } finally {
+      setBusy(null);
+    }
+  }, [gateway, path, u.pricePerCall]);
+
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-semibold">{u.name}</span>
+        <span className="rounded border border-sky-400/30 bg-sky-400/10 px-1.5 py-0.5 font-mono text-[11px] text-sky-300">
+          {u.pricePerCall > 0 ? `$${u.pricePerCall.toFixed(2)}/call` : "free"}
+        </span>
+        <span className="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[11px] text-white/55">
+          min score {u.minScore}
+        </span>
+        {u.builtin && <span className="rounded bg-white/5 px-1.5 py-0.5 text-[11px] text-white/35">live demo</span>}
+        {!u.builtin && (
+          <button onClick={() => onRemove(u.id)} className="ml-auto text-xs text-white/30 transition hover:text-rose-300">
+            remove
+          </button>
+        )}
+      </div>
+      <p className="mt-1.5 text-xs text-white/45">{u.description}</p>
+
+      <div className="mt-3 flex items-center gap-2">
+        <code className="flex-1 overflow-x-auto rounded-lg border border-white/10 bg-black/40 px-3 py-2 font-mono text-xs text-white/75">
+          {gateway}<span className="text-white/35">{"/<path>"}</span>
+        </code>
+        <button
+          onClick={() => { navigator.clipboard.writeText(gateway); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
+          className="rounded-md border border-white/15 bg-black/50 px-2.5 py-2 text-xs text-white/60 transition hover:text-white"
+        >
+          {copied ? "copied" : "copy"}
+        </button>
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <input
+          value={path} onChange={(e) => setPath(e.target.value)}
+          className="flex-1 min-w-[200px] rounded-lg border border-white/10 bg-black/30 px-3 py-1.5 font-mono text-xs outline-none focus:border-sky-400/50"
+        />
+        <button
+          onClick={() => test("aaa-trusted-agent", true)} disabled={!!busy}
+          className="rounded-md border border-emerald-400/30 bg-emerald-400/10 px-3 py-1.5 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-400/20 disabled:opacity-50"
+        >
+          {busy === "aaa-trusted-agent" ? "…" : "test as AAA agent"}
+        </button>
+        <button
+          onClick={() => test("low-trust-scraper", false)} disabled={!!busy}
+          className="rounded-md border border-rose-400/30 bg-rose-400/10 px-3 py-1.5 text-xs font-semibold text-rose-300 transition hover:bg-rose-400/20 disabled:opacity-50"
+        >
+          {busy === "low-trust-scraper" ? "…" : "test as scraper"}
+        </button>
+      </div>
+
+      {out && (
+        <div className="mt-2">
+          <div className="flex items-center gap-2 text-xs">
+            <span className="font-mono text-white/50">{out.agent}</span>
+            <span className={`rounded px-1.5 py-0.5 font-semibold ${out.status >= 200 && out.status < 300 ? "bg-emerald-400/15 text-emerald-300" : "bg-rose-500/15 text-rose-300"}`}>
+              HTTP {out.status || "ERR"}
+            </span>
+          </div>
+          <pre className="mt-1 max-h-44 overflow-auto rounded-lg border border-white/10 bg-black/50 p-3 font-mono text-[11px] leading-relaxed text-white/70">
+            {pretty(out.body)}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function pretty(s: string): string {
+  try {
+    return JSON.stringify(JSON.parse(s), null, 2).slice(0, 1400);
+  } catch {
+    return s.slice(0, 1400);
+  }
 }
