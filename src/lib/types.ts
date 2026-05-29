@@ -69,7 +69,7 @@ export interface Decision {
   agentId: string;
   tool: string;
   allow: boolean;
-  blockedBy?: "trust-gate" | "tool-policy" | "pending-eval";
+  blockedBy?: "trust-gate" | "tool-policy" | "pending-eval" | "guardrail";
   score: number;
   tier: MoodysTier;
   riskLevel: RiskLevel;

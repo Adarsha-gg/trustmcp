@@ -1,4 +1,5 @@
 import { recordDecision } from "./events";
+import { checkGuardrails, recordSpend } from "./guardrails";
 import { isOperatorEnabled, operatorGate } from "./operator";
 import { dynamicPrice, TOOLS_BY_NAME } from "./tools";
 import { evaluateAgent } from "./trust";
@@ -123,7 +124,25 @@ export async function handleToolCall(
     };
   }
 
+  // Guardrails: police the actual call even for trusted agents (injection,
+  // budget, velocity, burst, quarantine). This is what stops a hijacked AAA.
+  const guard = checkGuardrails(agentId, toolName, price, trust.riskLevel, args);
+  if (!guard.allow) {
+    const decision: Decision = {
+      ...base,
+      allow: false,
+      blockedBy: "guardrail",
+      reasons: [`Guardrail (${guard.type}): ${guard.message}`],
+    };
+    recordDecision(decision);
+    return {
+      decision,
+      error: { code: 403, message: `Guardrail blocked: ${guard.message}` },
+    };
+  }
+
   const result = await tool.run(args);
+  recordSpend(agentId, price);
   const decision: Decision = { ...base, allow: true };
   recordDecision(decision);
   return { decision, result };

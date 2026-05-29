@@ -69,7 +69,7 @@ function StatCard({ label, value, accent }: { label: string; value: string; acce
 }
 
 export default function Dashboard() {
-  const [tab, setTab] = useState<"console" | "inspect" | "connect">("console");
+  const [tab, setTab] = useState<"console" | "guardrails" | "inspect" | "connect">("console");
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [tools, setTools] = useState<Tool[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -175,7 +175,7 @@ export default function Dashboard() {
 
       {/* Tabs */}
       <nav className="mt-6 flex gap-1 rounded-xl border border-white/10 bg-white/[0.02] p-1 text-sm">
-        {(["console", "inspect", "connect"] as const).map((t) => (
+        {(["console", "guardrails", "inspect", "connect"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -183,7 +183,13 @@ export default function Dashboard() {
               tab === t ? "bg-sky-500 text-black" : "text-white/60 hover:text-white"
             }`}
           >
-            {t === "console" ? "Live console" : t === "inspect" ? "Inspect agent" : "Connect"}
+            {t === "console"
+              ? "Live console"
+              : t === "guardrails"
+                ? "Guardrails"
+                : t === "inspect"
+                  ? "Inspect agent"
+                  : "Connect"}
           </button>
         ))}
       </nav>
@@ -275,6 +281,7 @@ export default function Dashboard() {
         </>
       )}
 
+      {tab === "guardrails" && <Guardrails />}
       {tab === "inspect" && <Inspector mode={mode} />}
       {tab === "connect" && <Connect />}
 
@@ -354,6 +361,139 @@ function DecisionRow({ d }: { d: Decision }) {
         <span className="ml-auto text-white/25">{d.source}</span>
       </div>
       {d.reasons?.[0] && <p className="mt-1 text-xs text-white/40">{d.reasons[0]}</p>}
+    </div>
+  );
+}
+
+type GuardSnap = {
+  policy: { budgetUsd: number; velocityUsd: number; burstMax: number; quarantineMs: number };
+  agents: { agentId: string; spend: number; budgetPct: number; violations: number; quarantined: boolean }[];
+  alerts: { id: string; ts: number; agentId: string; tool: string; type: string; message: string }[];
+};
+
+const violColor: Record<string, string> = {
+  injection: "text-rose-300 border-rose-400/40 bg-rose-400/10",
+  budget: "text-amber-300 border-amber-400/40 bg-amber-400/10",
+  velocity: "text-amber-300 border-amber-400/40 bg-amber-400/10",
+  burst: "text-rose-300 border-rose-400/40 bg-rose-400/10",
+  quarantine: "text-fuchsia-300 border-fuchsia-400/40 bg-fuchsia-400/10",
+};
+
+function Guardrails() {
+  const [snap, setSnap] = useState<GuardSnap | null>(null);
+
+  useEffect(() => {
+    const load = () =>
+      fetch("/api/guardrails")
+        .then((r) => r.json())
+        .then(setSnap)
+        .catch(() => {});
+    load();
+    const t = setInterval(load, 1500);
+    return () => clearInterval(t);
+  }, []);
+
+  const reset = () =>
+    fetch("/api/guardrails", { method: "POST" }).then(() =>
+      fetch("/api/guardrails").then((r) => r.json()).then(setSnap),
+    );
+
+  const p = snap?.policy;
+
+  return (
+    <div className="mt-6 space-y-6">
+      <Panel title="Active policies — behavioral guardrails on every call">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <PolicyCard label="Budget cap / agent" value={p ? `$${p.budgetUsd.toFixed(2)}` : "—"} />
+          <PolicyCard label="Spend velocity" value={p ? `$${p.velocityUsd.toFixed(2)}/min` : "—"} />
+          <PolicyCard label="High-risk burst" value={p ? `${p.burstMax}/min` : "—"} />
+          <PolicyCard label="Injection scan" value="on every arg" />
+        </div>
+        <p className="mt-3 text-xs text-white/45">
+          Guardrails run <span className="text-white/70">after</span> the trust gate — so even a
+          AAA-trusted agent that gets prompt-injected, loops, or drains budget is caught and{" "}
+          <span className="text-fuchsia-300">quarantined</span>. Try the{" "}
+          <span className="text-sky-300">Atlas (hijacked)</span> demo agent.
+        </p>
+      </Panel>
+
+      <div className="grid gap-6 lg:grid-cols-[1fr_1.2fr]">
+        <Panel title="Per-agent budget & status">
+          {!snap?.agents.length && (
+            <div className="rounded-xl border border-dashed border-white/10 p-8 text-center text-sm text-white/40">
+              No agent activity yet. Run the demo or an attack wave.
+            </div>
+          )}
+          <div className="space-y-2">
+            {snap?.agents.map((a) => (
+              <div key={a.agentId} className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-mono text-white/80">{a.agentId}</span>
+                  <span className="flex items-center gap-2">
+                    {a.quarantined && (
+                      <span className="rounded bg-fuchsia-400/15 px-1.5 py-0.5 text-[11px] font-semibold text-fuchsia-300">
+                        quarantined
+                      </span>
+                    )}
+                    {a.violations > 0 && (
+                      <span className="rounded bg-rose-500/15 px-1.5 py-0.5 text-[11px] text-rose-300">
+                        {a.violations} viol.
+                      </span>
+                    )}
+                    <span className="text-white/50">${a.spend.toFixed(3)}</span>
+                  </span>
+                </div>
+                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className={`h-full ${a.budgetPct >= 100 ? "bg-rose-500" : a.budgetPct > 70 ? "bg-amber-400" : "bg-emerald-400"}`}
+                    style={{ width: `${a.budgetPct}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </Panel>
+
+        <Panel title="Guardrail alerts">
+          <div className="mb-2 flex justify-end">
+            <button
+              onClick={reset}
+              className="rounded-md border border-white/15 px-2.5 py-1 text-xs text-white/60 transition hover:text-white"
+            >
+              reset
+            </button>
+          </div>
+          <div className="max-h-[55vh] space-y-2 overflow-y-auto pr-1">
+            {!snap?.alerts.length && (
+              <div className="rounded-xl border border-dashed border-white/10 p-8 text-center text-sm text-white/40">
+                No violations. Trigger one with the hijacked agent or attack wave.
+              </div>
+            )}
+            {snap?.alerts.map((v) => (
+              <div key={v.id} className="flash-in rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className={`rounded border px-1.5 py-0.5 text-[11px] font-semibold uppercase ${violColor[v.type] ?? "text-white/60"}`}>
+                    {v.type}
+                  </span>
+                  <span className="font-mono text-white/70">{v.agentId}</span>
+                  <span className="text-white/30">→</span>
+                  <span className="font-mono text-sky-300">{v.tool}</span>
+                </div>
+                <p className="mt-1 text-xs text-white/50">{v.message}</p>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      </div>
+    </div>
+  );
+}
+
+function PolicyCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+      <div className="text-xs uppercase tracking-wider text-white/40">{label}</div>
+      <div className="mt-1 text-lg font-semibold text-white">{value}</div>
     </div>
   );
 }

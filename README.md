@@ -33,6 +33,11 @@ malicious or unproven agents.
   Valiron dynamic-pricing pattern) so abuse subsidizes its own risk.
 - **Auto-sandbox** — unknown agents are held `pending` evaluation, never allowed
   through blind.
+- **Guardrails engine** — behavioral policing *after* the trust gate, so even a
+  trusted agent that gets prompt-injected or loops is caught: per-agent spend
+  budgets + velocity caps, prompt-injection/exfiltration screening on tool
+  arguments, high-risk burst detection, and automatic **quarantine**. This is
+  the rogue-agent defense identity alone can't provide (see `ROADMAP.md`).
 - **Agent Passport inspector** — resolve any agent ID / wallet into its full
   Valiron trust profile: on-chain ERC-8004 reputation, behavioral sandbox tier,
   World ID proof-of-personhood, and routing — a credit report for agents.
@@ -77,6 +82,10 @@ npx tsx scripts/agent.ts unknown-newcomer get_market_data '{"symbol":"SOL"}'
 4. Click **Reaper (C)** → `send_payment` for $100k is denied on the spot.
 5. Click **☠ Simulate attack wave** → ~16 malicious agents hammer the gateway;
    watch the block counter spike while the two trusted agents still get through.
+6. **The money shot** — run **Atlas (hijacked)**: a AAA-trusted agent that's been
+   prompt-injected. It *passes* the trust gate, then the **Guardrails** tab shows
+   the injection blocked and the agent quarantined. Identity said "trusted";
+   behavior said "rogue". This is the pain point nothing else on the floor solves.
 6. **Inspect agent** tab → look up `25459` (real ERC-8004 id in `live`/`auto`
    mode) and show its on-chain reputation, sandbox tier, and World ID badge.
 7. **Connect** tab → copy the `mcp.json` and show it drops straight into an MCP

@@ -65,6 +65,7 @@ function routeFromScore(score: number): RouteDecision {
 const MOCK_PROFILES: Record<string, number> = {
   "aaa-trusted-agent": 96,
   "a-tier-research-bot": 82,
+  "hijacked-agent": 92,
   "b-tier-bot": 54,
   "low-trust-scraper": 38,
   "malicious-drainer": 9,
