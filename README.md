@@ -73,27 +73,34 @@ npx tsx scripts/agent.ts low-trust-scraper delete_records '{"table":"users"}'
 npx tsx scripts/agent.ts unknown-newcomer get_market_data '{"symbol":"SOL"}'
 ```
 
-## The demo: one button
+## The product is one line
 
-The UI is a single seamless workflow — no tabs. Just click **▶ Play guided
-demo** in the header and it auto-plays the whole story with on-screen captions
-and auto-scroll:
+You don't operate from a dashboard. You point your MCP client (Claude, Cursor,
+any client) at TrustMCP and your agents call tools like normal — every call is
+transparently scored by Valiron and policed by guardrails before it runs:
 
-1. **Atlas (AAA)** — high reputation. The animated **Agent → Trust → Guardrails →
-   Tool** pipeline lights all green; calls allowed at the cheapest price.
-2. **Gremlin (CAA)** — low trust. Reads cost 8×; sensitive tools blocked right at
-   the trust gate (pipeline goes red at the Trust stage).
-3. **Nova (new)** — never seen before; auto-sandboxed, held pending.
-4. **The money shot — Atlas (hijacked)**: a AAA-trusted agent that's been
-   prompt-injected. Trust says TRUSTED (pipeline green through Trust)… then
-   **Guardrails** light red, block the malicious payload, and quarantine it.
-   Identity said "trusted"; behavior said "rogue". Nothing else on the floor
-   catches this.
+```json
+{
+  "mcpServers": {
+    "trustmcp": {
+      "url": "https://your-trustmcp.app/api/mcp",
+      "headers": { "x-agent-id": "YOUR_AGENT_ID" }
+    }
+  }
+}
+```
 
-Everything is also live on the same page: the decision feed, guardrail budgets +
-alerts, the agent passport inspector (try real id `25459`), and the copy-paste
-MCP config. Flip the **mode toggle** (auto/live/mock) to prove it's hitting the
-real Valiron API.
+That's it. Trusted agents flow through; rogue, hijacked, or over-spending agents
+get blocked.
+
+### The dashboard is just "what happened"
+
+Open the page and click **▶ Run sample traffic** to watch the read-only activity
+log fill with ALLOW/DENY decisions — including a AAA-trusted agent that gets
+prompt-injected and is caught + quarantined by guardrails (`guardrail:` rows).
+Flip the **mode toggle** (auto/live/mock) to prove it's hitting the real Valiron
+API. Deeper views (agent passport, guardrail budgets, attack simulator) are
+available via the API routes and `scripts/`.
 
 ## Real operator billing (optional)
 
