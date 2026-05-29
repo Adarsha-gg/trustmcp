@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useGateway, type GateResponse, type Upstream } from "./store";
 import { CopyBtn, RiskDot, fmt, shortHash } from "./ui";
 
@@ -31,9 +31,9 @@ function UpstreamCard({ u }: { u: Upstream }) {
   const g = useGateway();
   const [test, setTest] = useState<{ agent: string; resp: GateResponse } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [origin, setOrigin] = useState("");
-  if (typeof window !== "undefined" && !origin) setOrigin(window.location.origin);
-  const gwUrl = (origin || "https://gate.trustmcp.io") + "/api/gateway/" + u.id;
+  const [origin, setOrigin] = useState("https://gate.trustmcp.io");
+  useEffect(() => setOrigin(window.location.origin), []);
+  const gwUrl = origin + "/api/gateway/" + u.id;
 
   async function runTest(agent: string) {
     setBusy(agent);
