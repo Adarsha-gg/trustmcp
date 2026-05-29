@@ -139,3 +139,24 @@ npm run dev
 - `src/lib/gateway.ts`
 - `src/lib/proxy.ts`
 - `src/lib/types.ts`
+
+---
+
+## Update — components v2 (Downloads `components (1).jsx`, May 29)
+
+Pulled the latest design **shared components** file from Downloads and synced it into the app.
+
+### What changed
+
+| Area | Change |
+|------|--------|
+| `public/prototype/components.jsx` | Replaced with `components (1).jsx` from Downloads |
+| `src/components/ui.tsx` | Ported fixes: 9-band `TIERS` lookup for badges, structured `BLOCK_LABELS` with `.label`, safer `CountUp` (cancelled rAF on unmount) |
+| `src/lib/tiers.ts` | **New** — single source of truth for Moody's tier → color group |
+| `src/lib/block-labels.ts` | **New** — block labels + pipeline step names (incl. kill-switch / read-only) |
+| `src/components/simulator.tsx` | Uses shared `tierFromScore` + `BLOCK_LABELS` |
+| `public/prototype/data.js` | Added kill-switch / read-only to prototype `BLOCK_LABELS` |
+
+### CountUp fix (why it mattered)
+
+The new component uses a `cancelled` flag in the effect cleanup so `requestAnimationFrame` cannot keep firing after unmount — prevents stat tiles from spinning or leaking updates when the activity section re-renders quickly.

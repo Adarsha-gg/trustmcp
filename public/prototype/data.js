@@ -165,6 +165,8 @@
     "guardrail":        { label: "GUARDRAIL",    step: "Guardrails" },
     "payment-required": { label: "402 UNPAID",   step: "x402 Payment" },
     "pending-eval":     { label: "SANDBOX",      step: "Identity" },
+    "kill-switch":      { label: "KILL SWITCH",  step: "Identity" },
+    "read-only":        { label: "READ ONLY",    step: "Valiron Trust" },
   };
 
   /* ---------- live-stream generator ---------- */
