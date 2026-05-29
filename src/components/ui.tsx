@@ -1,20 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { BLOCK_LABELS } from "@/lib/block-labels";
+import { tierClass, tierGroup } from "@/lib/tiers";
 import type { Decision } from "./store";
 
 export const fmt = (n: number) => "$" + n.toFixed(2);
 export const shortHash = (h?: string) => (h ? h.slice(0, 6) + "…" + h.slice(-4) : "");
-
-const GREEN = ["AAA", "AA", "A"];
-const AMBER = ["BAA", "BA", "B"];
-export function tierGroup(tier: string): "green" | "amber" | "red" {
-  if (GREEN.includes(tier)) return "green";
-  if (AMBER.includes(tier)) return "amber";
-  return "red";
-}
-export const tierClass = (g: "green" | "amber" | "red") =>
-  g === "green" ? "tier-green" : g === "amber" ? "tier-amber" : "tier-red";
 
 export function Mark({ size = 26 }: { size?: number }) {
   return (
@@ -44,8 +36,9 @@ export function Wordmark() {
 }
 
 export function TierBadge({ tier, score, showScore = false }: { tier: string; score?: number | null; showScore?: boolean }) {
+  const grp = tierGroup(tier);
   return (
-    <span className={"tier-badge " + tierClass(tierGroup(tier))}>
+    <span className={"tier-badge " + tierClass(grp)}>
       {tier}
       {showScore && score != null && <span style={{ opacity: 0.7, fontWeight: 500 }}>{score}</span>}
     </span>
@@ -64,20 +57,16 @@ export function RoutePill({ route }: { route: string }) {
   return <span className="pill" style={{ color: map[route] ?? "var(--text-2)", borderColor: "var(--line)" }}>{route}</span>;
 }
 
-const BLOCK_LABELS: Record<string, string> = {
-  "trust-gate": "TRUST GATE",
-  "tool-policy": "TOOL POLICY",
-  "guardrail": "GUARDRAIL",
-  "payment-required": "402 UNPAID",
-  "pending-eval": "SANDBOX",
-  "kill-switch": "KILL SWITCH",
-  "read-only": "READ ONLY",
-};
+/** Display name for a decision row (API/tool field from backend). */
+export function decisionTarget(d: Decision): string {
+  return d.tool;
+}
 
 export function FeedRow({ d, dense }: { d: Decision; dense?: boolean }) {
   const cls = !d.allow ? (d.blockedBy === "payment-required" ? "pay" : "no") : d.payment ? "pay" : "ok";
   const reason = d.reasons[d.reasons.length - 1];
-  const blkLabel = d.blockedBy ? BLOCK_LABELS[d.blockedBy] : null;
+  const blk = d.blockedBy ? BLOCK_LABELS[d.blockedBy] : null;
+  const target = decisionTarget(d);
   return (
     <div
       className={"feed-row " + cls}
@@ -86,15 +75,22 @@ export function FeedRow({ d, dense }: { d: Decision; dense?: boolean }) {
       <div className={"verdict " + (d.allow ? "allow" : "deny")}>{d.allow ? "▸ ALLOW" : "■ DENY"}</div>
 
       <div className="tcell" style={{ minWidth: 0 }}>
-        {d.kind === "api" && <span className="tier-badge" style={{ borderColor: "var(--accent-line)", color: "var(--accent-bright)", background: "var(--accent-bg)", fontSize: 9, padding: "1px 5px", marginRight: 6 }}>API</span>}
+        {d.kind === "api" && (
+          <span
+            className="tier-badge"
+            style={{ borderColor: "var(--accent-line)", color: "var(--accent-bright)", background: "var(--accent-bg)", fontSize: 9, padding: "1px 5px", marginRight: 6 }}
+          >
+            API
+          </span>
+        )}
         <span className="mono" style={{ color: "var(--text-1)" }}>{d.agentId}</span>
         <span className="dimmer mono" style={{ margin: "0 6px" }}>→</span>
-        <span className="mono" style={{ color: "var(--text)" }}>{d.tool}</span>
+        <span className="mono" style={{ color: "var(--text)" }}>{target}</span>
       </div>
 
       {!dense && (
         <div className="tcell mono" style={{ color: d.allow ? "var(--text-2)" : "var(--red)", fontSize: 12 }}>
-          {blkLabel && <span className="tier-badge tier-red" style={{ marginRight: 8, fontSize: 9.5, padding: "1px 5px" }}>{blkLabel}</span>}
+          {blk && <span className="tier-badge tier-red" style={{ marginRight: 8, fontSize: 9.5, padding: "1px 5px" }}>{blk.label}</span>}
           {reason}
         </div>
       )}
@@ -127,6 +123,7 @@ export function CopyBtn({ text, label = "Copy" }: { text: string; label?: string
   );
 }
 
+/** Animated stat — guarded rAF cleanup so it cannot loop after unmount (from design components v2). */
 export function CountUp({ value, decimals = 0 }: { value: number; decimals?: number }) {
   const [shown, setShown] = useState(value);
   const fromRef = useRef(value);
@@ -134,20 +131,26 @@ export function CountUp({ value, decimals = 0 }: { value: number; decimals?: num
     const from = fromRef.current;
     const to = value;
     fromRef.current = to;
-    if (from === to) { setShown(to); return; }
-    if (typeof document !== "undefined" && document.hidden) { setShown(to); return; }
+    if (from === to) return;
+    if (typeof document !== "undefined" && document.hidden) {
+      setShown(to);
+      return;
+    }
+    let raf = 0;
+    let cancelled = false;
     const start = performance.now();
     const dur = 500;
-    let raf: number;
     const tick = (now: number) => {
+      if (cancelled) return;
       const p = Math.min(1, (now - start) / dur);
-      const e = 1 - Math.pow(1 - p, 3);
-      setShown(from + (to - from) * e);
-      if (p < 1) raf = requestAnimationFrame(tick); else setShown(to);
+      setShown(from + (to - from) * (1 - Math.pow(1 - p, 3)));
+      if (p < 1) raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
-    const fb = setTimeout(() => setShown(to), dur + 150);
-    return () => { cancelAnimationFrame(raf); clearTimeout(fb); };
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf);
+    };
   }, [value]);
   const v = decimals > 0 ? Number(shown).toFixed(decimals) : Math.round(shown).toLocaleString();
   return <>{v}</>;

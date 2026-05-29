@@ -126,26 +126,25 @@ function CopyBtn({ text, label = "Copy" }) {
   );
 }
 
-/* count-up number — resilient to rAF throttling (snaps if backgrounded) */
+/* count-up number — single guarded rAF, snaps when backgrounded; cannot loop */
 function CountUp({ value, decimals = 0 }) {
   const [shown, setShown] = React.useState(value);
   const fromRef = React.useRef(value);
   React.useEffect(() => {
     const from = fromRef.current, to = value;
-    fromRef.current = to; // advance baseline immediately so we never lose ground
-    if (from === to) { setShown(to); return; }
+    fromRef.current = to;
+    if (from === to) return;
     if (typeof document !== "undefined" && document.hidden) { setShown(to); return; }
+    let raf = 0, cancelled = false;
     const start = performance.now(), dur = 500;
-    let raf;
     const tick = (now) => {
+      if (cancelled) return;
       const p = Math.min(1, (now - start) / dur);
-      const e = 1 - Math.pow(1 - p, 3);
-      setShown(from + (to - from) * e);
-      if (p < 1) raf = requestAnimationFrame(tick); else setShown(to);
+      setShown(from + (to - from) * (1 - Math.pow(1 - p, 3)));
+      if (p < 1) raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
-    const fb = setTimeout(() => setShown(to), dur + 150); // fallback if rAF is paused
-    return () => { cancelAnimationFrame(raf); clearTimeout(fb); };
+    return () => { cancelled = true; cancelAnimationFrame(raf); };
   }, [value]);
   const v = decimals > 0 ? Number(shown).toFixed(decimals) : Math.round(shown).toLocaleString();
   return <>{v}</>;

@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useGateway, type Decision, type GateResponse } from "./store";
+import { BLOCK_LABELS } from "@/lib/block-labels";
+import { tierFromScore } from "@/lib/tiers";
 import { RiskDot, RoutePill, TierBadge, fmt, shortHash } from "./ui";
 
 const PIPE_STEPS = [
@@ -21,10 +23,6 @@ const TAG: Record<string, string> = {
   "unknown-newcomer": "PENDING", "hijacked-agent": "HIJACKED", "broke-agent": "NO FUNDS", "malicious-drainer": "FLAGGED",
 };
 
-function tierFromScore(s: number): string {
-  if (s >= 95) return "AAA"; if (s >= 88) return "AA"; if (s >= 80) return "A"; if (s >= 70) return "BAA";
-  if (s >= 60) return "BA"; if (s >= 50) return "B"; if (s >= 35) return "CAA"; if (s >= 20) return "CA"; return "C";
-}
 function stopStep(d: Decision): number {
   switch (d.blockedBy) {
     case "kill-switch": return 0;
@@ -212,17 +210,6 @@ function StepMark({ state }: { state: string }) {
   return <span style={{ color: "var(--text-3)", fontSize: 13 }}>·</span>;
 }
 
-const BLOCK_STEP: Record<string, string> = {
-  "trust-gate": "Valiron Trust", "tool-policy": "Policy", "guardrail": "Guardrails",
-  "payment-required": "x402 Payment", "pending-eval": "Identity",
-  "kill-switch": "Identity", "read-only": "Valiron Trust",
-};
-const BLOCK_LABEL: Record<string, string> = {
-  "trust-gate": "TRUST GATE", "tool-policy": "TOOL POLICY", "guardrail": "GUARDRAIL",
-  "payment-required": "402 UNPAID", "pending-eval": "SANDBOX",
-  "kill-switch": "KILL SWITCH", "read-only": "READ ONLY",
-};
-
 type X402Challenge = {
   accepts?: { payTo?: string; maxAmountRequired?: string; network?: string; resource?: string }[];
 };
@@ -254,8 +241,12 @@ function Verdict({ result, gateResp, basePrice }: { result: Decision | null; gat
         </div>
         {result.blockedBy && (
           <div className="mt-12">
-            <span className="tier-badge tier-red" style={{ fontSize: 10 }}>BLOCKED BY · {BLOCK_LABEL[result.blockedBy] ?? result.blockedBy}</span>
-            <span className="dimmer mono" style={{ fontSize: 11, marginLeft: 8 }}>at step {BLOCK_STEP[result.blockedBy] ?? "—"}</span>
+            <span className="tier-badge tier-red" style={{ fontSize: 10 }}>
+              BLOCKED BY · {BLOCK_LABELS[result.blockedBy]?.label ?? result.blockedBy}
+            </span>
+            <span className="dimmer mono" style={{ fontSize: 11, marginLeft: 8 }}>
+              at step {BLOCK_LABELS[result.blockedBy]?.step ?? "—"}
+            </span>
           </div>
         )}
         <ul className="mono" style={{ margin: "12px 0 0", paddingLeft: 16, fontSize: 12, color: "var(--text-1)", lineHeight: 1.7 }}>
