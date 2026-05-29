@@ -7,6 +7,8 @@ type Decision = {
   ts: number;
   agentId: string;
   tool: string;
+  kind?: "tool" | "api";
+  upstream?: string;
   allow: boolean;
   blockedBy?: string;
   score: number;
@@ -146,9 +148,20 @@ export default function App() {
         </div>
       </section>
 
-      <footer className="mt-12 border-t border-white/10 pt-5 text-center text-xs text-white/30">
-        <span className="font-mono text-white/50">POST /api/mcp</span> · trust by{" "}
-        <span className="text-sky-300">@valiron/sdk</span> · guardrails by TrustMCP
+      <footer className="mt-12 flex flex-col items-center gap-3 border-t border-white/10 pt-5 text-center text-xs text-white/30">
+        <a
+          href="https://vercel.com/new/clone?repository-url=https://github.com/Adarsha-gg/trustmcp"
+          target="_blank" rel="noreferrer"
+          className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white/80 transition hover:bg-white/10"
+        >
+          <svg viewBox="0 0 76 65" className="h-3.5 w-3.5 fill-white" aria-hidden><path d="M37.5274 0L75.0548 65H0L37.5274 0Z" /></svg>
+          Deploy your own gateway
+        </a>
+        <div>
+          <span className="font-mono text-white/50">POST /api/mcp</span> ·{" "}
+          <span className="font-mono text-white/50">/api/gateway/&lt;id&gt;</span> · trust by{" "}
+          <span className="text-sky-300">@valiron/sdk</span> · guardrails by TrustMCP
+        </div>
       </footer>
     </div>
   );
@@ -179,6 +192,9 @@ function Row({ d }: { d: Decision }) {
   return (
     <div className={`flash-in flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2.5 text-sm ${d.allow ? "border-emerald-400/20 bg-emerald-400/[0.04]" : "border-rose-500/25 bg-rose-500/[0.05]"}`}>
       <span className={`rounded px-1.5 py-0.5 text-[11px] font-bold ${d.allow ? "bg-emerald-400/20 text-emerald-300" : "bg-rose-500/20 text-rose-300"}`}>{d.allow ? "ALLOW" : "DENY"}</span>
+      {d.kind === "api" && (
+        <span className="rounded border border-violet-400/30 bg-violet-400/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-300" title="Bring-Your-Own-API reverse proxy call">API</span>
+      )}
       <span className="font-mono text-white/80">{d.agentId}</span>
       <span className="text-white/30">→</span>
       <span className="font-mono text-sky-300">{d.tool}</span>

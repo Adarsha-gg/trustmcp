@@ -100,6 +100,7 @@ export async function handleProxyCall(input: ProxyCallInput): Promise<ProxyResul
   if (!agentId) {
     const decision: Decision = {
       id: decisionId(), ts: Date.now(), agentId: "anonymous", tool: label,
+      kind: "api", upstream: upstream.id,
       allow: false, blockedBy: "trust-gate", score: 0, tier: "C", riskLevel: "RED",
       route: "sandbox_only", price: 0, source: "mock",
       reasons: ["Missing agent identity (x-agent-id header)"],
@@ -128,7 +129,8 @@ export async function handleProxyCall(input: ProxyCallInput): Promise<ProxyResul
 
   const price = dynamicPrice(upstream.pricePerCall, trust.tier);
   const base: Omit<Decision, "allow" | "blockedBy"> = {
-    id: decisionId(), ts: Date.now(), agentId, tool: label, score: trust.score,
+    id: decisionId(), ts: Date.now(), agentId, tool: label, kind: "api",
+    upstream: upstream.id, score: trust.score,
     tier: trust.tier, riskLevel: trust.riskLevel, route: trust.route, price,
     reasons: trust.reasons, source: trust.source,
   };

@@ -68,6 +68,10 @@ export interface Decision {
   ts: number;
   agentId: string;
   tool: string;
+  /** "tool" = MCP tool call, "api" = Bring-Your-Own-API reverse proxy call. */
+  kind?: "tool" | "api";
+  /** For "api" decisions: the upstream id (e.g. "weather"). */
+  upstream?: string;
   allow: boolean;
   blockedBy?: "trust-gate" | "tool-policy" | "pending-eval" | "guardrail" | "payment-required";
   payment?: {

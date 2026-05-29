@@ -1,5 +1,11 @@
 # TrustMCP — a trust-gated MCP gateway
 
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/Adarsha-gg/trustmcp)
+
+> **One-click deploy** spins up your own gateway. Then register any HTTPS API in
+> the UI (or `POST /api/upstreams`) and it's instantly trust-gated + x402-priced
+> at `https://<your-deploy>/api/gateway/<id>/<path>`.
+
 **The identity & reputation layer for MCP tool calls.** TrustMCP sits in front of
 your [Model Context Protocol](https://modelcontextprotocol.io) tools and scores
 every calling agent with [Valiron](https://valiron.co) *before* the tool runs.
