@@ -73,23 +73,27 @@ npx tsx scripts/agent.ts low-trust-scraper delete_records '{"table":"users"}'
 npx tsx scripts/agent.ts unknown-newcomer get_market_data '{"symbol":"SOL"}'
 ```
 
-## Suggested 3-minute demo script
+## The demo: one button
 
-1. **Live console** — show the gated tool catalog (note `send_payment` needs ≥85).
-2. Click **Atlas (AAA)** → every call is allowed, cheapest pricing.
-3. Click **Gremlin (CAA)** → reads cost 8×, `read_customer_records` and
-   `delete_records` are **blocked** in red.
-4. Click **Reaper (C)** → `send_payment` for $100k is denied on the spot.
-5. Click **☠ Simulate attack wave** → ~16 malicious agents hammer the gateway;
-   watch the block counter spike while the two trusted agents still get through.
-6. **The money shot** — run **Atlas (hijacked)**: a AAA-trusted agent that's been
-   prompt-injected. It *passes* the trust gate, then the **Guardrails** tab shows
-   the injection blocked and the agent quarantined. Identity said "trusted";
-   behavior said "rogue". This is the pain point nothing else on the floor solves.
-6. **Inspect agent** tab → look up `25459` (real ERC-8004 id in `live`/`auto`
-   mode) and show its on-chain reputation, sandbox tier, and World ID badge.
-7. **Connect** tab → copy the `mcp.json` and show it drops straight into an MCP
-   client. Flip the **mode toggle** to prove it's the real Valiron API.
+The UI is a single seamless workflow — no tabs. Just click **▶ Play guided
+demo** in the header and it auto-plays the whole story with on-screen captions
+and auto-scroll:
+
+1. **Atlas (AAA)** — high reputation. The animated **Agent → Trust → Guardrails →
+   Tool** pipeline lights all green; calls allowed at the cheapest price.
+2. **Gremlin (CAA)** — low trust. Reads cost 8×; sensitive tools blocked right at
+   the trust gate (pipeline goes red at the Trust stage).
+3. **Nova (new)** — never seen before; auto-sandboxed, held pending.
+4. **The money shot — Atlas (hijacked)**: a AAA-trusted agent that's been
+   prompt-injected. Trust says TRUSTED (pipeline green through Trust)… then
+   **Guardrails** light red, block the malicious payload, and quarantine it.
+   Identity said "trusted"; behavior said "rogue". Nothing else on the floor
+   catches this.
+
+Everything is also live on the same page: the decision feed, guardrail budgets +
+alerts, the agent passport inspector (try real id `25459`), and the copy-paste
+MCP config. Flip the **mode toggle** (auto/live/mock) to prove it's hitting the
+real Valiron API.
 
 ## Real operator billing (optional)
 
