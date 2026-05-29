@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useGateway, type Decision } from "./store";
+import { useGateway, type Decision, type GateResponse } from "./store";
 import { RiskDot, RoutePill, TierBadge, fmt, shortHash } from "./ui";
 
 const PIPE_STEPS = [
@@ -27,9 +27,11 @@ function tierFromScore(s: number): string {
 }
 function stopStep(d: Decision): number {
   switch (d.blockedBy) {
+    case "kill-switch": return 0;
     case "pending-eval": return 0;
     case "trust-gate": return 1;
     case "tool-policy": return 1;
+    case "read-only": return 1;
     case "guardrail": return 2;
     case "payment-required": return 3;
     default: return 4;
@@ -44,6 +46,7 @@ export function Simulator() {
   const [targetKey, setTargetKey] = useState<string>("");
   const [phase, setPhase] = useState(-1);
   const [result, setResult] = useState<Decision | null>(null);
+  const [gateResp, setGateResp] = useState<GateResponse | null>(null);
   const [running, setRunning] = useState(false);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
@@ -62,16 +65,18 @@ export function Simulator() {
   const clearTimers = () => { timers.current.forEach(clearTimeout); timers.current = []; };
   useEffect(() => () => clearTimers(), []);
 
-  function reset() { setResult(null); setPhase(-1); clearTimers(); }
+  function reset() { setResult(null); setGateResp(null); setPhase(-1); clearTimers(); }
 
   async function fire() {
     if (!target) return;
     clearTimers();
     setRunning(true);
     setResult(null);
+    setGateResp(null);
     setPhase(0);
     const resp = await g.gate(agentId, target.kind, target.id);
     if (!resp) { setRunning(false); setPhase(-1); return; }
+    setGateResp(resp);
     const d = resp.decision;
     const stop = stopStep(d);
     let delay = 0;
@@ -105,6 +110,14 @@ export function Simulator() {
         <span className="eyebrow"><span className="dot" /> THE GATE · INTERACTIVE</span>
         <h2 className="h-sec">Watch the gate decide.</h2>
         <p className="sub">Pick an agent, point it at a tool or your API, and fire a real request. Every call runs the same five checks — and is rejected at the first one it fails.</p>
+
+        {g.incident !== "normal" && (
+          <div className="panel mt-16" style={{ padding: "12px 16px", borderColor: g.incident === "fail_closed" ? "var(--red-line)" : "var(--amber-line)", background: g.incident === "fail_closed" ? "var(--red-bg)" : "var(--amber-bg)" }}>
+            <span className="mono" style={{ fontSize: 12, color: g.incident === "fail_closed" ? "var(--red)" : "var(--amber)" }}>
+              {g.incident === "fail_closed" ? "■ Kill switch active — all calls fail-closed" : "◇ Read-only mode — only public GREEN tools allowed"}
+            </span>
+          </div>
+        )}
 
         <div className="sim-grid">
           <div className="col gap-16">
@@ -183,7 +196,7 @@ export function Simulator() {
                   );
                 })}
               </div>
-              <Verdict result={result} basePrice={target?.price ?? 0} />
+              <Verdict result={result} gateResp={gateResp} basePrice={target?.price ?? 0} />
             </div>
           </div>
         </div>
@@ -202,13 +215,19 @@ function StepMark({ state }: { state: string }) {
 const BLOCK_STEP: Record<string, string> = {
   "trust-gate": "Valiron Trust", "tool-policy": "Policy", "guardrail": "Guardrails",
   "payment-required": "x402 Payment", "pending-eval": "Identity",
+  "kill-switch": "Identity", "read-only": "Valiron Trust",
 };
 const BLOCK_LABEL: Record<string, string> = {
   "trust-gate": "TRUST GATE", "tool-policy": "TOOL POLICY", "guardrail": "GUARDRAIL",
   "payment-required": "402 UNPAID", "pending-eval": "SANDBOX",
+  "kill-switch": "KILL SWITCH", "read-only": "READ ONLY",
 };
 
-function Verdict({ result, basePrice }: { result: Decision | null; basePrice: number }) {
+type X402Challenge = {
+  accepts?: { payTo?: string; maxAmountRequired?: string; network?: string; resource?: string }[];
+};
+
+function Verdict({ result, gateResp, basePrice }: { result: Decision | null; gateResp: GateResponse | null; basePrice: number }) {
   if (!result) {
     return (
       <div className="center dim mono" style={{ minHeight: 92, marginTop: 16, fontSize: 13, border: "1px dashed var(--line-soft)", borderRadius: 8 }}>
@@ -218,6 +237,11 @@ function Verdict({ result, basePrice }: { result: Decision | null; basePrice: nu
   }
   const ok = result.allow;
   const pay = result.payment;
+  const challenge =
+    gateResp?.paymentRequired && typeof gateResp.paymentRequired === "object"
+      ? (gateResp.paymentRequired as X402Challenge)
+      : null;
+  const accept = challenge?.accepts?.[0];
   return (
     <div className="fade-in mt-16" style={{ display: "grid", gridTemplateColumns: pay ? "1fr 320px" : "1fr", gap: 14 }}>
       <div style={{ borderRadius: 10, padding: "16px 18px", border: "1px solid " + (ok ? "var(--green-line)" : "var(--red-line)"), background: ok ? "var(--green-bg)" : "var(--red-bg)" }}>
@@ -242,12 +266,27 @@ function Verdict({ result, basePrice }: { result: Decision | null; basePrice: nu
           {!ok && " · Retry-After: 30"}
         </div>
       </div>
-      {pay && <X402Receipt amount={pay.amount} settled={pay.state === "settled"} txHash={pay.txHash} basePrice={basePrice} />}
+      {pay && (
+        <X402Receipt
+          amount={pay.amount}
+          settled={pay.state === "settled"}
+          txHash={pay.txHash}
+          basePrice={basePrice}
+          payTo={accept?.payTo}
+          resource={accept?.resource}
+          network={accept?.network ?? pay.network}
+        />
+      )}
     </div>
   );
 }
 
-function X402Receipt({ amount, settled, txHash, basePrice }: { amount: number; settled: boolean; txHash?: string; basePrice: number }) {
+function X402Receipt({
+  amount, settled, txHash, basePrice, payTo, resource, network,
+}: {
+  amount: number; settled: boolean; txHash?: string; basePrice: number;
+  payTo?: string; resource?: string; network?: string;
+}) {
   const mult = basePrice > 0 ? amount / basePrice : 1;
   return (
     <div className="receipt" style={{ borderColor: settled ? "var(--amber-line)" : "var(--red-line)" }}>
@@ -265,7 +304,13 @@ function X402Receipt({ amount, settled, txHash, basePrice }: { amount: number; s
           <Line k="tx" v={shortHash(txHash)} c="var(--text-1)" />
         </>
       ) : (
-        <Line k="status" v="WALLET UNFUNDED" c="var(--red)" />
+        <>
+          <Line k="status" v="402 CHALLENGE" c="var(--red)" />
+          {network && <Line k="network" v={network} />}
+          {payTo && <Line k="payTo" v={shortHash(payTo)} c="var(--text-1)" />}
+          {resource && <Line k="resource" v={resource} c="var(--text-2)" />}
+          <Line k="agent action" v="attach x-payment header & retry" c="var(--amber)" />
+        </>
       )}
     </div>
   );

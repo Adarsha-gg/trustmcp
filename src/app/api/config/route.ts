@@ -1,16 +1,30 @@
 import { NextRequest } from "next/server";
-import { getChain, getMode, setChain, setMode, type TrustMode } from "@/lib/config";
+import {
+  getChain,
+  getIncident,
+  getMode,
+  setChain,
+  setIncident,
+  setMode,
+  type IncidentMode,
+  type TrustMode,
+} from "@/lib/config";
 import { isOperatorEnabled } from "@/lib/operator";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  return Response.json({ mode: getMode(), chain: getChain(), operator: isOperatorEnabled() });
+  return Response.json({
+    mode: getMode(),
+    chain: getChain(),
+    operator: isOperatorEnabled(),
+    incident: getIncident(),
+  });
 }
 
 export async function POST(req: NextRequest) {
-  let body: { mode?: TrustMode; chain?: string } = {};
+  let body: { mode?: TrustMode; chain?: string; incident?: IncidentMode } = {};
   try {
     body = await req.json();
   } catch {
@@ -20,5 +34,13 @@ export async function POST(req: NextRequest) {
     setMode(body.mode);
   }
   if (body.chain) setChain(body.chain);
-  return Response.json({ mode: getMode(), chain: getChain() });
+  if (body.incident && ["normal", "fail_closed", "read_only"].includes(body.incident)) {
+    setIncident(body.incident);
+  }
+  return Response.json({
+    mode: getMode(),
+    chain: getChain(),
+    operator: isOperatorEnabled(),
+    incident: getIncident(),
+  });
 }

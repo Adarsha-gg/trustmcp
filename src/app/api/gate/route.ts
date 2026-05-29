@@ -73,7 +73,7 @@ export async function POST(req: Request) {
   }
   return Response.json({
     decision: outcome.decision,
-    paymentRequired: !!outcome.paymentRequired,
+    paymentRequired: outcome.paymentRequired ?? null,
     settlement: outcome.settlement ?? null,
     result: outcome.result ?? null,
   });

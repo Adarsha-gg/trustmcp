@@ -70,6 +70,8 @@ const BLOCK_LABELS: Record<string, string> = {
   "guardrail": "GUARDRAIL",
   "payment-required": "402 UNPAID",
   "pending-eval": "SANDBOX",
+  "kill-switch": "KILL SWITCH",
+  "read-only": "READ ONLY",
 };
 
 export function FeedRow({ d, dense }: { d: Decision; dense?: boolean }) {

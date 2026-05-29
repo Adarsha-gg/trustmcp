@@ -6,9 +6,13 @@
  */
 export type TrustMode = "auto" | "live" | "mock";
 
+export type IncidentMode = "normal" | "fail_closed" | "read_only";
+
 interface RuntimeConfig {
   mode: TrustMode;
   chain: string;
+  /** Fail-closed: deny every call immediately (incident response). */
+  incident: IncidentMode;
 }
 
 const g = globalThis as unknown as { __trustmcpConfig?: RuntimeConfig };
@@ -18,6 +22,7 @@ function cfg(): RuntimeConfig {
     g.__trustmcpConfig = {
       mode: (process.env.VALIRON_MODE as TrustMode) ?? "auto",
       chain: process.env.VALIRON_CHAIN ?? "ethereum",
+      incident: "normal",
     };
   }
   return g.__trustmcpConfig;
@@ -37,4 +42,12 @@ export function getChain(): string {
 
 export function setChain(chain: string): void {
   cfg().chain = chain;
+}
+
+export function getIncident(): IncidentMode {
+  return cfg().incident;
+}
+
+export function setIncident(incident: IncidentMode): void {
+  cfg().incident = incident;
 }

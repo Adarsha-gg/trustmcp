@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import type { AgentPassport } from "@/lib/types";
 
 export type Decision = {
   id: string;
@@ -21,6 +22,8 @@ export type Decision = {
   payment?: { state: "required" | "settled"; amount: number; network: string; asset: string; txHash?: string };
 };
 
+export type { AgentPassport };
+
 export type Upstream = {
   id: string;
   name: string;
@@ -33,10 +36,26 @@ export type Upstream = {
 
 export type Tool = { name: string; description: string; risk: "GREEN" | "YELLOW" | "RED"; minScore: number; basePrice: number };
 export type Agent = { id: string; label: string; blurb: string; expected: string };
-
 export type Mode = "auto" | "live" | "mock";
+export type IncidentMode = "normal" | "fail_closed" | "read_only";
+
+export type GuardrailsSnapshot = {
+  policy: { budgetUsd: number; velocityUsd: number; velocityWindowMs: number; burstMax: number; burstWindowMs: number; quarantineMs: number };
+  agents: { agentId: string; spend: number; budgetPct: number; violations: number; quarantined: boolean }[];
+  alerts: { id: string; ts: number; agentId: string; tool: string; type: string; message: string }[];
+};
 
 type Stats = { calls: number; allowed: number; blocked: number; paid: number; revenue: number };
+
+export type GateResponse = {
+  decision: Decision;
+  paymentRequired?: boolean | Record<string, unknown>;
+  settlement?: { amount: number; txHash: string } | null;
+  http?: { status: number; bodyPreview: string };
+  result?: unknown;
+};
+
+export type NewUpstream = { name: string; baseUrl: string; pricePerCall: number; minScore: number };
 
 export interface GatewayStore {
   decisions: Decision[];
@@ -45,24 +64,26 @@ export interface GatewayStore {
   tools: Tool[];
   agents: Agent[];
   mode: Mode;
+  chain: string;
+  operator: boolean;
+  incident: IncidentMode;
   connected: boolean;
   streaming: boolean;
+  guardrails: GuardrailsSnapshot | null;
+  attackBusy: boolean;
+  lastAttack: { total: number; allowed: number; blocked: number } | null;
   setStreaming: (b: boolean) => void;
   setMode: (m: Mode) => void;
+  setIncident: (m: IncidentMode) => void;
   gate: (agentId: string, kind: "tool" | "api", target: string) => Promise<GateResponse | null>;
+  inspect: (agentId: string) => Promise<AgentPassport | null>;
+  refreshGuardrails: () => Promise<void>;
+  resetGuardrails: () => Promise<void>;
   addUpstream: (input: NewUpstream) => Promise<{ ok: boolean; error?: string }>;
   removeUpstream: (id: string) => Promise<void>;
   runSampleTraffic: () => Promise<void>;
+  runAttackWave: () => Promise<void>;
 }
-
-export type GateResponse = {
-  decision: Decision;
-  paymentRequired?: boolean;
-  settlement?: { amount: number; txHash: string } | null;
-  http?: { status: number; bodyPreview: string };
-};
-
-export type NewUpstream = { name: string; baseUrl: string; pricePerCall: number; minScore: number };
 
 const MAX_FEED = 60;
 const Ctx = createContext<GatewayStore | null>(null);
@@ -92,8 +113,14 @@ export function GatewayProvider({ children }: { children: React.ReactNode }) {
   const [tools, setTools] = useState<Tool[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [mode, setModeState] = useState<Mode>("auto");
+  const [chain, setChain] = useState("ethereum");
+  const [operator, setOperator] = useState(false);
+  const [incident, setIncidentState] = useState<IncidentMode>("normal");
   const [connected, setConnected] = useState(false);
   const [streaming, setStreaming] = useState(true);
+  const [guardrails, setGuardrails] = useState<GuardrailsSnapshot | null>(null);
+  const [attackBusy, setAttackBusy] = useState(false);
+  const [lastAttack, setLastAttack] = useState<{ total: number; allowed: number; blocked: number } | null>(null);
 
   const bump = useCallback((d: Decision) => {
     setStats((s) => ({
@@ -105,7 +132,27 @@ export function GatewayProvider({ children }: { children: React.ReactNode }) {
     }));
   }, []);
 
-  // --- live SSE stream of real decisions ---
+  const loadConfig = useCallback(() => {
+    fetch("/api/config")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.mode) setModeState(d.mode);
+        if (d.chain) setChain(d.chain);
+        if (d.incident) setIncidentState(d.incident);
+        setOperator(!!d.operator);
+      })
+      .catch(() => {});
+  }, []);
+
+  const refreshGuardrails = useCallback(async () => {
+    try {
+      const r = await fetch("/api/guardrails");
+      if (r.ok) setGuardrails(await r.json());
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   useEffect(() => {
     const es = new EventSource("/api/events");
     es.addEventListener("open", () => setConnected(true));
@@ -123,20 +170,28 @@ export function GatewayProvider({ children }: { children: React.ReactNode }) {
     return () => es.close();
   }, [bump]);
 
-  // --- config + catalog + upstreams ---
   const loadUpstreams = useCallback(() => {
     fetch("/api/upstreams").then((r) => r.json()).then((d) => setUpstreams(d.upstreams ?? [])).catch(() => {});
   }, []);
+
   useEffect(() => {
-    fetch("/api/config").then((r) => r.json()).then((d) => d.mode && setModeState(d.mode)).catch(() => {});
+    loadConfig();
     fetch("/api/catalog").then((r) => r.json()).then((d) => { setTools(d.tools ?? []); setAgents(d.agents ?? []); }).catch(() => {});
     loadUpstreams();
-  }, [loadUpstreams]);
+    refreshGuardrails();
+  }, [loadConfig, loadUpstreams, refreshGuardrails]);
 
   const setMode = useCallback(async (m: Mode) => {
     setModeState(m);
     await fetch("/api/config", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode: m }),
+    }).catch(() => {});
+  }, []);
+
+  const setIncident = useCallback(async (m: IncidentMode) => {
+    setIncidentState(m);
+    await fetch("/api/config", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ incident: m }),
     }).catch(() => {});
   }, []);
 
@@ -151,6 +206,23 @@ export function GatewayProvider({ children }: { children: React.ReactNode }) {
       return null;
     }
   }, []);
+
+  const inspect = useCallback(async (agentId: string): Promise<AgentPassport | null> => {
+    try {
+      const res = await fetch("/api/inspect", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ agentId }),
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as AgentPassport;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const resetGuardrails = useCallback(async () => {
+    await fetch("/api/guardrails", { method: "POST" }).catch(() => {});
+    await refreshGuardrails();
+  }, [refreshGuardrails]);
 
   const addUpstream = useCallback(async (input: NewUpstream) => {
     const res = await fetch("/api/upstreams", {
@@ -172,18 +244,34 @@ export function GatewayProvider({ children }: { children: React.ReactNode }) {
     await fetch("/api/simulate", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}),
     }).catch(() => {});
-  }, []);
+    await refreshGuardrails();
+  }, [refreshGuardrails]);
 
-  // --- ambient live traffic so the feed feels alive (real calls through the gate) ---
+  const runAttackWave = useCallback(async () => {
+    setAttackBusy(true);
+    try {
+      const res = await fetch("/api/attack", { method: "POST" });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok && typeof d.total === "number") {
+        setLastAttack({ total: d.total, allowed: d.allowed, blocked: d.blocked });
+      }
+      await refreshGuardrails();
+    } finally {
+      setAttackBusy(false);
+    }
+  }, [refreshGuardrails]);
+
   const agentsRef = useRef(agents);
   const toolsRef = useRef(tools);
   const upstreamsRef = useRef(upstreams);
+  const incidentRef = useRef(incident);
   agentsRef.current = agents;
   toolsRef.current = tools;
   upstreamsRef.current = upstreams;
+  incidentRef.current = incident;
 
   useEffect(() => {
-    if (!streaming) return;
+    if (!streaming || incidentRef.current !== "normal") return;
     let alive = true;
     let timer: ReturnType<typeof setTimeout>;
     const tick = async () => {
@@ -206,11 +294,13 @@ export function GatewayProvider({ children }: { children: React.ReactNode }) {
     };
     timer = setTimeout(tick, 1400);
     return () => { alive = false; clearTimeout(timer); };
-  }, [streaming, gate]);
+  }, [streaming, gate, incident]);
 
   const store: GatewayStore = {
-    decisions, stats, upstreams, tools, agents, mode, connected, streaming,
-    setStreaming, setMode, gate, addUpstream, removeUpstream, runSampleTraffic,
+    decisions, stats, upstreams, tools, agents, mode, chain, operator, incident,
+    connected, streaming, guardrails, attackBusy, lastAttack,
+    setStreaming, setMode, setIncident, gate, inspect, refreshGuardrails, resetGuardrails,
+    addUpstream, removeUpstream, runSampleTraffic, runAttackWave,
   };
   return <Ctx.Provider value={store}>{children}</Ctx.Provider>;
 }
